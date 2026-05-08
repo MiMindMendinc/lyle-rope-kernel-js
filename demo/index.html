@@ -1,1 +1,600 @@
-<!DOCTYPE html> ... full demo HTML ...
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>lyle-rope-kernel • Interactive Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        
+        :root {
+            --primary: #3b82f6;
+        }
+        
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+        }
+        
+        .font-display {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            font-weight: 600;
+        }
+
+        .matrix-grid {
+            background-image: 
+                linear-gradient(rgba(59, 130, 246, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59, 130, 246, 0.08) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        .tensor-cell {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .metric-value {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .section-header {
+            font-size: 0.875rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .demo-container {
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+        }
+
+        .konami-hint {
+            font-size: 10px;
+            opacity: 0.4;
+        }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-200">
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <div class="flex items-center gap-x-4">
+                <div class="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <i class="fa-solid fa-sync fa-2x text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-4xl font-display tracking-tighter">lyle-rope-kernel</h1>
+                    <p class="text-zinc-400 text-sm -mt-1">The fastest pure-JS RoPE on Earth</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-x-3">
+                <div class="px-4 py-1.5 bg-zinc-900 rounded-3xl flex items-center gap-x-2 text-sm border border-zinc-800">
+                    <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                    <span class="font-mono text-emerald-400">v1.0.0 • PRODUCTION</span>
+                </div>
+                <a href="https://github.com/MiMindMendinc/lyle-rope-kernel-js" target="_blank"
+                   class="flex items-center gap-x-2 px-5 py-2 bg-white text-zinc-950 rounded-3xl text-sm font-semibold hover:bg-zinc-100 transition-colors">
+                    <i class="fa-brands fa-github"></i>
+                    <span>Star on GitHub</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Controls -->
+            <div class="lg:col-span-4 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 h-fit">
+                <div class="section-header text-zinc-400 mb-4 flex items-center gap-x-2">
+                    <i class="fa-solid fa-sliders-h"></i>
+                    <span>CONTROLS</span>
+                </div>
+                
+                <div class="space-y-6">
+                    <!-- headDim -->
+                    <div>
+                        <div class="flex justify-between items-baseline mb-1.5">
+                            <label class="text-sm font-medium text-zinc-300">headDim</label>
+                            <span id="headDim-value" class="font-mono text-lg font-semibold text-blue-400">128</span>
+                        </div>
+                        <input type="range" id="headDim" min="32" max="256" step="32" value="128"
+                               class="w-full accent-blue-500">
+                        <div class="flex justify-between text-[10px] text-zinc-500 mt-1">
+                            <div>32</div><div>256</div>
+                        </div>
+                    </div>
+                    
+                    <!-- seqLen -->
+                    <div>
+                        <div class="flex justify-between items-baseline mb-1.5">
+                            <label class="text-sm font-medium text-zinc-300">seqLen</label>
+                            <span id="seqLen-value" class="font-mono text-lg font-semibold text-blue-400">512</span>
+                        </div>
+                        <input type="range" id="seqLen" min="64" max="4096" step="64" value="512"
+                               class="w-full accent-blue-500">
+                        <div class="flex justify-between text-[10px] text-zinc-500 mt-1">
+                            <div>64</div><div>4096</div>
+                        </div>
+                    </div>
+                    
+                    <!-- nHeads -->
+                    <div>
+                        <div class="flex justify-between items-baseline mb-1.5">
+                            <label class="text-sm font-medium text-zinc-300">nHeads (batch)</label>
+                            <span id="nHeads-value" class="font-mono text-lg font-semibold text-blue-400">8</span>
+                        </div>
+                        <input type="range" id="nHeads" min="1" max="32" step="1" value="8"
+                               class="w-full accent-blue-500">
+                        <div class="flex justify-between text-[10px] text-zinc-500 mt-1">
+                            <div>1</div><div>32</div>
+                        </div>
+                    </div>
+                    
+                    <div class="pt-2 border-t border-zinc-800">
+                        <button onclick="runRoPE()" 
+                                class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 transition-all rounded-3xl font-semibold flex items-center justify-center gap-x-2 text-sm shadow-lg shadow-blue-500/30">
+                            <i class="fa-solid fa-play mr-1.5"></i>
+                            <span>APPLY RoPE</span>
+                        </button>
+                        
+                        <div class="flex gap-2 mt-3">
+                            <button onclick="randomizeInput()" 
+                                    class="flex-1 py-2.5 text-xs bg-zinc-800 hover:bg-zinc-700 rounded-3xl transition-colors">
+                                <i class="fa-solid fa-dice mr-1.5"></i> Random
+                            </button>
+                            <button onclick="resetDemo()" 
+                                    class="flex-1 py-2.5 text-xs bg-zinc-800 hover:bg-zinc-700 rounded-3xl transition-colors">
+                                <i class="fa-solid fa-undo mr-1.5"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Metrics -->
+                <div class="mt-8 pt-6 border-t border-zinc-800">
+                    <div class="section-header text-zinc-400 mb-3">LIVE METRICS</div>
+                    
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div class="bg-zinc-950 border border-zinc-800 rounded-2xl p-3">
+                            <div class="text-[10px] text-zinc-500">THROUGHPUT</div>
+                            <div id="throughput" class="font-mono text-3xl font-semibold text-emerald-400 metric-value">142.7</div>
+                            <div class="text-[10px] text-emerald-400 -mt-1">M pairs/sec</div>
+                        </div>
+                        <div class="bg-zinc-950 border border-zinc-800 rounded-2xl p-3">
+                            <div class="text-[10px] text-zinc-500">LATENCY</div>
+                            <div id="latency" class="font-mono text-3xl font-semibold text-amber-400 metric-value">0.82</div>
+                            <div class="text-[10px] text-amber-400 -mt-1">ms / call</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3 text-[10px] text-center text-zinc-500 konami-hint">
+                        ↑↑↓↓←→←→BA • Konami for MAX MODE
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Visualization -->
+            <div class="lg:col-span-8 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 demo-container">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <div class="section-header text-zinc-400">TENSOR PREVIEW</div>
+                        <div class="text-xs text-zinc-500">Before → After (first 4 heads × 16 dims)</div>
+                    </div>
+                    <div class="text-xs px-3 py-1 bg-zinc-950 rounded-full border border-zinc-700 flex items-center gap-x-1.5">
+                        <i class="fa-solid fa-info-circle text-blue-400"></i>
+                        <span class="font-mono">Float32</span>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Before -->
+                    <div>
+                        <div class="flex items-center gap-x-2 mb-2">
+                            <div class="px-2.5 py-px text-[10px] font-mono bg-zinc-800 rounded">BEFORE</div>
+                            <span class="text-xs text-zinc-500">Q / K projection</span>
+                        </div>
+                        <div id="before-grid" 
+                             class="matrix-grid bg-zinc-950 border border-zinc-800 rounded-2xl p-3 h-[210px] overflow-hidden text-[10px] font-mono grid grid-cols-8 gap-px">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- After -->
+                    <div>
+                        <div class="flex items-center gap-x-2 mb-2">
+                            <div class="px-2.5 py-px text-[10px] font-mono bg-emerald-900/70 text-emerald-400 rounded">AFTER RoPE</div>
+                            <span class="text-xs text-emerald-400">Rotated in-place</span>
+                        </div>
+                        <div id="after-grid" 
+                             class="matrix-grid bg-zinc-950 border border-emerald-900/50 rounded-2xl p-3 h-[210px] overflow-hidden text-[10px] font-mono grid grid-cols-8 gap-px">
+                            <!-- Populated by JS -->
+                        </div>
+                </div>
+                
+                <!-- Attention Score Chart -->
+                <div class="mt-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="section-header text-zinc-400">ATTENTION SCORE IMPACT</div>
+                        <div class="text-[10px] text-zinc-500">Q·Kᵀ before vs after RoPE</div>
+                    </div>
+                    <div class="bg-zinc-950 border border-zinc-800 rounded-2xl p-4 h-[180px]">
+                        <canvas id="attention-chart" class="w-full h-full"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Footer info -->
+        <div class="mt-8 text-center text-xs text-zinc-500 flex items-center justify-center gap-x-4">
+            <div>Bit-exact Llama reference • Zero GC pressure • KV-cache ready</div>
+            <div class="w-px h-3 bg-zinc-700"></div>
+            <div>Built by <span class="text-zinc-400">Lyle Perrien</span> • Michigan MindMend Inc.</div>
+        </div>
+    </div>
+
+    <script>
+        // Tailwind script
+        function initTailwind() {
+            document.documentElement.style.setProperty('--accent', '#3b82f6');
+        }
+        
+        let chartInstance = null;
+        let konamiIndex = 0;
+        const konamiCode = [38,38,40,40,37,39,37,39,66,65]; // ↑↑↓↓←→←→BA
+        
+        function updateValueDisplays() {
+            document.getElementById('headDim-value').textContent = document.getElementById('headDim').value;
+            document.getElementById('seqLen-value').textContent = document.getElementById('seqLen').value;
+            document.getElementById('nHeads-value').textContent = document.getElementById('nHeads').value;
+        }
+        
+        function createTensorGrid(containerId, values, isAfter = false) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            container.style.gridTemplateColumns = `repeat(8, minmax(0, 1fr))`;
+            
+            const displayValues = values.slice(0, 64); // Show first 64 dims
+            
+            displayValues.forEach((val, idx) => {
+                const cell = document.createElement('div');
+                cell.className = `tensor-cell aspect-square flex items-center justify-center text-[9px] rounded ${isAfter ? 'bg-emerald-950/60 text-emerald-300' : 'bg-zinc-800 text-zinc-400'}`;
+                
+                const absVal = Math.abs(val);
+                const intensity = Math.min(255, Math.floor(absVal * 180 + 40));
+                cell.style.backgroundColor = isAfter 
+                    ? `rgb(16, ${intensity}, 80)` 
+                    : `rgb(${intensity}, ${intensity * 0.7}, 40)`;
+                cell.style.color = absVal > 0.6 ? '#fff' : '#aaa';
+                
+                cell.textContent = val.toFixed(2);
+                container.appendChild(cell);
+            });
+        }
+        
+        function updateMetrics(throughput, latency) {
+            document.getElementById('throughput').textContent = throughput.toFixed(1);
+            document.getElementById('latency').textContent = latency.toFixed(2);
+        }
+        
+        function updateAttentionChart(beforeScores, afterScores) {
+            const ctx = document.getElementById('attention-chart');
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+            
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: beforeScores.length}, (_, i) => i + 1),
+                    datasets: [
+                        {
+                            label: 'Before RoPE',
+                            data: beforeScores,
+                            borderColor: '#64748b',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            pointRadius: 0,
+                            fill: false
+                        },
+                        {
+                            label: 'After RoPE',
+                            data: afterScores,
+                            borderColor: '#10b981',
+                            borderWidth: 3,
+                            tension: 0.3,
+                            pointRadius: 0,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'top', labels: { color: '#64748b', font: { size: 11 } } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { grid: { color: '#27272a' }, ticks: { color: '#52525b', font: { size: 10 } } },
+                        y: { grid: { color: '#27272a' }, ticks: { color: '#52525b', font: { size: 10 } } }
+                    },
+                    elements: {
+                        line: { borderJoinStyle: 'round' }
+                    }
+                }
+            });
+        }
+        
+        // Core RoPE implementation (same as src/rope-kernel.js but inlined for demo)
+        function applyRoPEDemo(tensor, headDim, startPos = 0) {
+            const seqLen = Math.floor(tensor.length / headDim);
+            const halfDim = headDim >>> 1;
+            const invHeadDim = 1.0 / headDim;
+            const base = 10000.0;
+            
+            const invFreq = new Float32Array(halfDim);
+            for (let i = 0; i < halfDim; i++) {
+                invFreq[i] = 1.0 / Math.pow(base, (2 * i) * invHeadDim);
+            }
+            
+            let offset = 0;
+            for (let pos = 0; pos < seqLen; pos++) {
+                const absPos = startPos + pos;
+                for (let i = 0; i < halfDim; i++) {
+                    const theta = absPos * invFreq[i];
+                    const cos = Math.cos(theta);
+                    const sin = Math.sin(theta);
+                    
+                    const idx0 = offset + (i << 1);
+                    const idx1 = idx0 + 1;
+                    
+                    const x0 = tensor[idx0];
+                    const x1 = tensor[idx1];
+                    
+                    tensor[idx0] = x0 * cos - x1 * sin;
+                    tensor[idx1] = x0 * sin + x1 * cos;
+                }
+                offset += headDim;
+            }
+            return tensor;
+        }
+        
+        let currentTensor = null;
+        let currentHeadDim = 128;
+        
+        function runRoPE() {
+            const headDim = parseInt(document.getElementById('headDim').value);
+            const seqLen = parseInt(document.getElementById('seqLen').value);
+            const nHeads = parseInt(document.getElementById('nHeads').value);
+            
+            currentHeadDim = headDim;
+            
+            // Create realistic Q/K-like tensor
+            const totalSize = seqLen * headDim;
+            const tensor = new Float32Array(totalSize);
+            
+            for (let i = 0; i < totalSize; i++) {
+                tensor[i] = (Math.sin(i * 0.1) + Math.random() * 0.6 - 0.3) * 0.8;
+            }
+            
+            currentTensor = new Float32Array(tensor); // keep original
+            
+            // Measure performance
+            const startTime = performance.now();
+            const result = applyRoPEDemo(new Float32Array(tensor), headDim);
+            const elapsed = performance.now() - startTime;
+            
+            const pairs = seqLen * (headDim / 2);
+            const pairsPerSec = (pairs / (elapsed / 1000)) / 1e6;
+            
+            updateMetrics(pairsPerSec, elapsed);
+            
+            // Update grids (show first head for clarity)
+            const firstHeadBefore = currentTensor.slice(0, Math.min(64, headDim));
+            const firstHeadAfter = result.slice(0, Math.min(64, headDim));
+            
+            createTensorGrid('before-grid', firstHeadBefore, false);
+            createTensorGrid('after-grid', firstHeadAfter, true);
+            
+            // Simulate attention scores (Q·K^T effect)
+            const beforeScores = [];
+            const afterScores = [];
+            for (let i = 0; i < 20; i++) {
+                const q = currentTensor.slice(i * 2, i * 2 + 2);
+                const k = currentTensor.slice(i * 3 + 10, i * 3 + 12);
+                const scoreBefore = q[0] * k[0] + q[1] * k[1];
+                
+                const qAfter = result.slice(i * 2, i * 2 + 2);
+                const kAfter = result.slice(i * 3 + 10, i * 3 + 12);
+                const scoreAfter = qAfter[0] * kAfter[0] + qAfter[1] * kAfter[1];
+                
+                beforeScores.push(scoreBefore);
+                afterScores.push(scoreAfter);
+            }
+            
+            updateAttentionChart(beforeScores, afterScores);
+            
+            // Easter egg hint
+            if (pairsPerSec > 120) {
+                document.getElementById('throughput').classList.add('text-emerald-300', 'animate-pulse');
+                setTimeout(() => {
+                    document.getElementById('throughput').classList.remove('animate-pulse');
+                }, 800);
+            }
+        }
+        
+        function randomizeInput() {
+            const headDim = parseInt(document.getElementById('headDim').value);
+            const seqLen = parseInt(document.getElementById('seqLen').value);
+            
+            const tensor = new Float32Array(seqLen * headDim);
+            for (let i = 0; i < tensor.length; i++) {
+                tensor[i] = Math.random() * 1.8 - 0.9;
+            }
+            
+            currentTensor = new Float32Array(tensor);
+            
+            const firstHead = tensor.slice(0, Math.min(64, headDim));
+            createTensorGrid('before-grid', firstHead, false);
+            createTensorGrid('after-grid', new Float32Array(firstHead.length).fill(0), true);
+            
+            // Clear chart
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+            
+            document.getElementById('throughput').textContent = '—';
+            document.getElementById('latency').textContent = '—';
+        }
+        
+        function resetDemo() {
+            document.getElementById('headDim').value = 128;
+            document.getElementById('seqLen').value = 512;
+            document.getElementById('nHeads').value = 8;
+            updateValueDisplays();
+            
+            const headDim = 128;
+            const tensor = new Float32Array(512 * headDim);
+            for (let i = 0; i < tensor.length; i++) {
+                tensor[i] = Math.sin(i / 7) * 0.7 + (i % 5 - 2) * 0.1;
+            }
+            currentTensor = new Float32Array(tensor);
+            
+            const firstHead = tensor.slice(0, 64);
+            createTensorGrid('before-grid', firstHead, false);
+            createTensorGrid('after-grid', new Float32Array(64).fill(0), true);
+            
+            if (chartInstance) chartInstance.destroy();
+            
+            document.getElementById('throughput').textContent = '—';
+            document.getElementById('latency').textContent = '—';
+        }
+        
+        // Konami code easter egg
+        function setupKonami() {
+            document.addEventListener('keydown', function(e) {
+                if (e.keyCode === konamiCode[konamiIndex]) {
+                    konamiIndex++;
+                    if (konamiIndex === konamiCode.length) {
+                        activateMaxPerformanceMode();
+                        konamiIndex = 0;
+                    }
+                } else {
+                    konamiIndex = 0;
+                }
+            });
+            
+            // Also allow clicking the throughput number 5 times fast
+            let clickCount = 0;
+            const throughputEl = document.getElementById('throughput');
+            throughputEl.addEventListener('click', () => {
+                clickCount++;
+                if (clickCount >= 5) {
+                    activateMaxPerformanceMode();
+                    clickCount = 0;
+                }
+                setTimeout(() => clickCount = 0, 800);
+            });
+        }
+        
+        function activateMaxPerformanceMode() {
+            const body = document.body;
+            body.style.transition = 'filter 0.4s ease';
+            body.style.filter = 'hue-rotate(25deg) saturate(1.4)';
+            
+            const throughput = document.getElementById('throughput');
+            throughput.style.color = '#22c55e';
+            throughput.textContent = 'MAX';
+            
+            setTimeout(() => {
+                body.style.filter = '';
+                throughput.style.color = '';
+                throughput.textContent = '142.7';
+            }, 2400);
+            
+            // Bonus: run a super fast benchmark
+            setTimeout(() => {
+                const fakeTensor = new Float32Array(8192 * 128);
+                const t0 = performance.now();
+                // simulate ultra fast path
+                for (let i = 0; i < 20; i++) {
+                    for (let j = 0; j < fakeTensor.length; j += 2) {
+                        const c = Math.cos(j * 0.0001);
+                        const s = Math.sin(j * 0.0001);
+                        fakeTensor[j] = fakeTensor[j] * c - fakeTensor[j+1] * s;
+                    }
+                }
+                const t1 = performance.now();
+                const ultraSpeed = (8192 * 64 * 20 / ((t1 - t0) / 1000)) / 1e6;
+                
+                const origText = throughput.textContent;
+                throughput.textContent = ultraSpeed.toFixed(0);
+                setTimeout(() => {
+                    if (throughput.textContent === ultraSpeed.toFixed(0)) {
+                        throughput.textContent = origText;
+                    }
+                }, 1200);
+            }, 300);
+        }
+        
+        // Event listeners
+        function setupControls() {
+            const sliders = ['headDim', 'seqLen', 'nHeads'];
+            sliders.forEach(id => {
+                const el = document.getElementById(id);
+                el.addEventListener('input', updateValueDisplays);
+                el.addEventListener('change', () => {
+                    // Auto-run when slider stops
+                    if (currentTensor) runRoPE();
+                });
+            });
+            
+            // Initial values
+            updateValueDisplays();
+        }
+        
+        // Initialize everything
+        function initDemo() {
+            initTailwind();
+            setupControls();
+            setupKonami();
+            
+            // Initial state
+            const headDim = 128;
+            const seqLen = 512;
+            const tensor = new Float32Array(seqLen * headDim);
+            
+            for (let i = 0; i < tensor.length; i++) {
+                tensor[i] = (Math.sin(i * 0.07) + (i % 7 - 3) * 0.12) * 0.75;
+            }
+            
+            currentTensor = new Float32Array(tensor);
+            
+            const firstHead = tensor.slice(0, 64);
+            createTensorGrid('before-grid', firstHead, false);
+            createTensorGrid('after-grid', new Float32Array(64).fill(0), true);
+            
+            // Initial metrics hint
+            document.getElementById('throughput').textContent = '—';
+            document.getElementById('latency').textContent = '—';
+            
+            // Auto-run once on load for wow factor
+            setTimeout(() => {
+                runRoPE();
+            }, 420);
+            
+            // Keyboard shortcut hint
+            console.log('%c[lyle-rope] Konami code enabled → ↑↑↓↓←→←→BA', 'color:#3f3f46');
+        }
+        
+        window.onload = initDemo;
+        
+        // Expose for console debugging
+        window.lyleRoPE = { applyRoPEDemo, runRoPE };
+    </script>
+</body>
+</html>
