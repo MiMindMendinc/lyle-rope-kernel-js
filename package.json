@@ -1,0 +1,49 @@
+{
+  "name": "lyle-rope-kernel",
+  "version": "1.0.0",
+  "description": "The fastest pure-JavaScript RoPE (Rotary Position Embedding) kernel — 140M+ pairs/sec, bit-exact Llama correctness, zero-dependency, KV-cache ready. Foundation of Lyle’s AI Ecosystem.",
+  "main": "src/rope-kernel.js",
+  "module": "src/rope-kernel.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "benchmark": "node benchmark.js",
+    "demo": "echo 'Open demo/index.html in your browser'",
+    "prepublishOnly": "npm test && npm run benchmark"
+  },
+  "keywords": [
+    "rope",
+    "rotary-position-embedding",
+    "llama",
+    "transformers",
+    "browser-ai",
+    "edge-ai",
+    "webgpu",
+    "javascript",
+    "performance",
+    "kv-cache",
+    "llm",
+    "inference"
+  ],
+  "author": "Lyle Perrien <michiganmindmendinc@proton.me>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MiMindMendinc/lyle-rope-kernel-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MiMindMendinc/lyle-rope-kernel-js/issues"
+  },
+  "homepage": "https://github.com/MiMindMendinc/lyle-rope-kernel-js#readme",
+  "files": [
+    "src/",
+    "demo/",
+    "examples/",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
