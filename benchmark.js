@@ -5,6 +5,7 @@
  */
 
 import { applyRoPE } from './src/rope-kernel.js';
+import { performance } from 'perf_hooks';
 
 const headDims = [64, 128, 256];
 const seqLens = [512, 2048, 8192];
