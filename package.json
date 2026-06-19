@@ -1,13 +1,18 @@
 {
   "name": "lyle-rope-kernel",
   "version": "1.0.0",
-  "description": "The fastest pure JavaScript RoPE (Rotary Position Embedding) kernel",
+  "description": "Zero-dependency in-place RoPE kernel for JavaScript inference experiments",
+  "type": "module",
   "main": "src/rope-kernel.js",
   "scripts": {
     "test": "node --test",
     "benchmark": "node benchmark.js"
   },
   "keywords": ["rope", "llm", "llama", "transformers", "webgpu", "javascript", "ai"],
-  "author": "Lyle",
+  "author": "Lyle Perrien II <michiganmindmendinc@proton.me>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MiMindMendinc/lyle-rope-kernel-js.git"
+  },
   "license": "MIT"
 }
