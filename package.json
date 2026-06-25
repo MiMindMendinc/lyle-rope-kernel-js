@@ -1,4 +1,19 @@
 {
   "name": "lyle-rope-kernel",
-  "version": "1.0.1"
+  "version": "1.0.1",
+  "description": "Zero-dependency in-place RoPE kernel for JavaScript inference experiments",
+  "type": "module",
+  "main": "src/rope-kernel.js",
+  "exports": {
+    ".": "./src/rope-kernel.js",
+    "./webgpu": "./src/webgpu-rope.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "benchmark": "node benchmark.js",
+    "benchmark:hot": "node benchmark-hot.js"
+  },
+  "keywords": ["rope", "llm", "transformers", "webgpu", "javascript", "ai"],
+  "author": "Lyle Perrien II",
+  "license": "MIT"
 }
