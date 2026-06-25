@@ -8,10 +8,15 @@
     ".": "./src/rope-kernel.js",
     "./webgpu": "./src/webgpu-rope.js"
   },
+  "files": ["src", "README.md", "LICENSE"],
   "scripts": {
     "test": "node --test",
     "benchmark": "node benchmark.js",
     "benchmark:hot": "node benchmark.js --mode=hot"
+  },
+  "keywords": ["rope", "llm", "transformer", "javascript", "inference"],
+  "engines": {
+    "node": ">=20"
   },
   "author": "Lyle Perrien II",
   "license": "MIT"
