@@ -11,9 +11,8 @@
   "scripts": {
     "test": "node --test",
     "benchmark": "node benchmark.js",
-    "benchmark:hot": "node benchmark-hot.js"
+    "benchmark:hot": "node benchmark.js --mode=hot"
   },
-  "keywords": ["rope", "llm", "transformers", "webgpu", "javascript", "ai"],
   "author": "Lyle Perrien II",
   "license": "MIT"
 }
