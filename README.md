@@ -1,86 +1,51 @@
 # lyle-rope-kernel-js
 
-**Zero-dependency, in-place RoPE (Rotary Position Embedding) kernel in pure JavaScript — bit-exact against the Llama reference, with a reproducible benchmark and live interactive demo.**
+Zero-dependency, in-place RoPE kernel in pure JavaScript for local transformer experiments.
 
-[![Tests](https://img.shields.io/badge/Tests-4%2F4_passing-brightgreen.svg)](test/rope.test.js)
-[![Benchmark](https://img.shields.io/badge/Benchmark-reproducible_(benchmark.js)-blue.svg)](benchmark.js)
-[![Zero deps](https://img.shields.io/badge/Dependencies-0-success.svg)](package.json)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+## What is verified
 
-**[▶ Open the live demo](demo/index.html)** — sliders for `headDim`/`seqLen`/`nHeads`, real-time before/after tensor view, attention-score visualization, instant throughput readout.
+- In-place Float32Array rotation.
+- Reusable precomputed RoPE plan API.
+- KV-cache continuation through startPos.
+- Deterministic known-value tests.
+- Independent scalar reference parity tests.
+- Norm preservation tests.
+- Partial seqLen tests.
+- Invalid input validation.
 
----
+## API
 
-## Why this exists
+Exports:
 
-RoPE is the positional encoding inside every modern LLM (Llama, Mistral, Gemma, Qwen). Most JavaScript implementations allocate on every call, break on KV-cache continuation (`startPos > 0`), or drift from the reference math. This kernel is built the way you'd build it for a real inference hot loop:
+- applyRoPE(tensor, headDim, options)
+- createRoPEPlan(headDim, base)
+- applyRoPEWithPlan(tensor, plan, options)
+- applyToHead(head, pos, headDim, base)
+- verifyNormPreservation(original, afterRoPE, tolerance)
 
-- **True in-place, zero-allocation hot path** — near-zero GC pressure in autoregressive decoding
-- **Full `startPos` support** for KV-cache continuation
-- **Bit-exact** against official Llama reference rotations (float32 tolerance), norm preservation verified
-- Hand-tuned `Float32Array` access patterns, `applyToHead` helper, full JSDoc
+Use applyRoPE for simple calls. Use createRoPEPlan plus applyRoPEWithPlan in tight loops where the same headDim and base are reused.
 
-## Performance — measured, reproducible
+## Benchmarks
 
-Run it yourself: `npm run benchmark` (harness: [`benchmark.js`](benchmark.js))
+Run npm run benchmark for copy plus compute timing.
 
-| Hardware | Throughput |
-| --- | --- |
-| Modern desktop CPU | ~133–140M rotation pairs/sec |
-| Shared cloud vCPU (independent re-run) | ~31–42M pairs/sec |
+Run npm run benchmark:hot for the precomputed-plan path.
 
-Numbers vary with `headDim`/`seqLen`; the harness sweeps Llama-3-8B/70B, 128-dim (GPT-style), and 64-dim (mobile) configs. No cross-library comparison is claimed here — run the harness against your own baseline.
+The default benchmark includes Float32Array copy cost. The hot path reuses a RoPE plan.
 
-## Correctness
+## Tests
 
-`npm test` — 4/4 passing:
-- Llama reference parity (bit-exact within float32 tolerance)
-- Norm preservation (required for attention stability)
-- Edge cases: KV-cache continuation, seqLen > 2048, startPos > 0, odd headDim
+Run npm test.
 
-## Install & use
+The suite covers known values, scalar reference parity, norm preservation, position-zero identity, startPos, partial seqLen, applyToHead parity, planned API parity, custom base behavior, long sequences, and invalid inputs.
 
-```bash
-npm install lyle-rope-kernel
-```
+## Layout note
 
-```js
-import { applyRoPE } from 'lyle-rope-kernel';
+This implementation rotates adjacent pairs inside each row-major head: x0/x1, x2/x3, and so on. Some model stacks use split-half rotary layouts, so confirm the target layout before integration.
 
-const headDim = 128;
-const seqLen = 512;
-const q = new Float32Array(seqLen * headDim);
-const k = new Float32Array(seqLen * headDim);
+## WebGPU status
 
-applyRoPE(q, headDim, { startPos: 0 });        // in-place, fastest path
-applyRoPE(k, headDim, { startPos: 0 });
-
-// KV-cache continuation
-applyRoPE(q, headDim, { startPos: 1024, seqLen: 8 });
-```
-
-Full drop-in attention block: [`examples/minimal-transformer.js`](examples/minimal-transformer.js)
-
-## Development
-
-```bash
-git clone https://github.com/MiMindMendinc/lyle-rope-kernel-js.git
-cd lyle-rope-kernel-js
-npm install
-npm test           # correctness suite
-npm run benchmark  # throughput + memory profiling
-```
-
-## Roadmap
-
-- [x] v1.0.0 — Core kernel, tests, benchmark, interactive demo
-- [ ] v1.1.0 — WebGPU compute-shader path ([`src/webgpu-rope.js`](src/webgpu-rope.js))
-- [ ] v1.2.0 — Transformer-block integration package
-- [ ] v2.0.0 — Multi-head batching + tiled attention experiments
-
-## Related work
-
-Part of a privacy-first, offline-capable AI stack by [Michigan MindMend Inc.](https://github.com/MiMindMendinc) — see [DominusUltra](https://github.com/MiMindMendinc/DominusUltra) (Triton fused RoPE + causal attention) and [TrustLayer](https://github.com/MiMindMendinc/TrustLayer) (LLM safety gateway).
+The WebGPU file is preview-only. Treat the JavaScript path as the production path until full GPU bindings are implemented.
 
 ## License
 
