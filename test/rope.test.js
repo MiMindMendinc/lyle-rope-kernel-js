@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyRoPE, applyRoPEWithPlan, applyToHead, createRoPEPlan, verifyNormPreservation, DEFAULT_BASE } from '../src/rope-kernel.js';
+import { applyRoPE, applyRoPEWithPlan, applyRoPESplitHalf, applyToHead, createRoPEPlan, verifyNormPreservation, DEFAULT_BASE } from '../src/rope-kernel.js';
 
 const EPS = 1e-6;
 function close(a, b, msg) { assert.ok(Math.abs(a - b) <= EPS, msg + ': ' + a + ' != ' + b); }
@@ -18,6 +18,26 @@ function ref(input, headDim, opts = {}) {
       const x0 = input[j], x1 = input[j + 1];
       out[j] = x0 * c - x1 * s;
       out[j + 1] = x0 * s + x1 * c;
+    }
+  }
+  return out;
+}
+
+function refSplitHalf(input, headDim, opts = {}) {
+  const startPos = opts.startPos ?? 0;
+  const seqLen = opts.seqLen ?? Math.floor(input.length / headDim);
+  const base = opts.base ?? DEFAULT_BASE;
+  const out = new Float32Array(input);
+  const half = headDim >>> 1;
+  for (let p = 0; p < seqLen; p++) {
+    for (let i = 0; i < half; i++) {
+      const theta = (startPos + p) / Math.pow(base, (2 * i) / headDim);
+      const c = Math.cos(theta), s = Math.sin(theta);
+      const j0 = p * headDim + i;
+      const j1 = j0 + half;
+      const x0 = input[j0], x1 = input[j1];
+      out[j0] = x0 * c - x1 * s;
+      out[j1] = x0 * s + x1 * c;
     }
   }
   return out;
@@ -77,6 +97,24 @@ describe('lyle-rope-kernel', () => {
     applyToHead(a, 33, 8);
     applyRoPE(b, 8, { startPos: 33, seqLen: 1 });
     for (let i = 0; i < a.length; i++) close(a[i], b[i], 'head ' + i);
+  });
+
+  it('matches split-half scalar reference', () => {
+    const headDim = 8, seqLen = 3, startPos = 11;
+    const x = new Float32Array(seqLen * headDim);
+    for (let i = 0; i < x.length; i++) x[i] = ((i % 9) - 4) / 5;
+    const y = refSplitHalf(x, headDim, { startPos, seqLen });
+    const z = new Float32Array(x);
+    applyRoPESplitHalf(z, headDim, { startPos, seqLen });
+    for (let i = 0; i < z.length; i++) close(z[i], y[i], 'split-half ' + i);
+  });
+
+  it('split-half layout differs from adjacent-pair layout away from zero', () => {
+    const a = new Float32Array([1, 2, 3, 4, 5, 6, 7, 8]);
+    const b = new Float32Array(a);
+    applyRoPESplitHalf(a, 8, { startPos: 7, seqLen: 1 });
+    applyRoPE(b, 8, { startPos: 7, seqLen: 1 });
+    assert.ok(a.some((v, i) => Math.abs(v - b[i]) > 1e-5));
   });
 
   it('planned API matches direct API', () => {
