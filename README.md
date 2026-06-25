@@ -2,7 +2,7 @@
 
 > Zero-dependency, in-place Rotary Position Embedding kernel for JavaScript inference experiments.
 
-![Tests](https://img.shields.io/badge/tests-12%2F12%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-14%2F14%20passing-brightgreen)
 ![Runtime](https://img.shields.io/badge/runtime-Node%2020%2B-blue)
 ![Dependencies](https://img.shields.io/badge/dependencies-0-success)
 ![Module](https://img.shields.io/badge/module-ESM-purple)
@@ -13,7 +13,7 @@
 
 | Plaque | Status |
 | --- | --- |
-| Correctness Gate | 12/12 tests passing |
+| Correctness Gate | 14/14 tests passing |
 | Reference Gate | deterministic scalar reference parity |
 | Stability Gate | L2 norm preservation checked |
 | KV Cache Gate | startPos continuation checked |
@@ -38,12 +38,13 @@
 Exports:
 
 - `applyRoPE(tensor, headDim, options)`
+- `applyRoPESplitHalf(tensor, headDim, options)`
 - `createRoPEPlan(headDim, base)`
 - `applyRoPEWithPlan(tensor, plan, options)`
 - `applyToHead(head, pos, headDim, base)`
 - `verifyNormPreservation(original, afterRoPE, tolerance)`
 
-Use `applyRoPE` for simple calls. Use `createRoPEPlan` plus `applyRoPEWithPlan` in tight loops where the same `headDim` and `base` are reused.
+Use `applyRoPE` for adjacent-pair layouts. Use `applyRoPESplitHalf` for stacks that pair the first and second halves of each head. Use `createRoPEPlan` plus `applyRoPEWithPlan` in tight loops where the same `headDim` and `base` are reused.
 
 ```js
 import { applyRoPE, createRoPEPlan, applyRoPEWithPlan } from 'lyle-rope-kernel';
@@ -103,13 +104,13 @@ Local validation baseline from Node `v22.16.0` in this session. These numbers ar
 
 ## Tests
 
-The suite covers known values, scalar reference parity, norm preservation, position-zero identity, `startPos`, partial `seqLen`, `applyToHead` parity, planned API parity, custom base behavior, long sequences, and invalid inputs.
+The suite covers known values, scalar reference parity, split-half parity, norm preservation, position-zero identity, `startPos`, partial `seqLen`, `applyToHead` parity, planned API parity, custom base behavior, long sequences, and invalid inputs.
 
-Current marker: `12 tests / 12 passing`.
+Current marker: `14 tests / 14 passing`.
 
 ## Layout note
 
-This implementation rotates adjacent pairs inside each row-major head: `x0/x1`, `x2/x3`, and so on. Some model stacks use split-half rotary layouts, so confirm the target layout before integration.
+`applyRoPE` rotates adjacent pairs inside each row-major head: `x0/x1`, `x2/x3`, and so on. `applyRoPESplitHalf` rotates split halves: `x0/x(half)`, `x1/x(half+1)`, and so on.
 
 ## WebGPU status
 

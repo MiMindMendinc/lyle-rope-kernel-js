@@ -51,7 +51,7 @@ function checkPlan(plan) {
   }
 }
 
-export function applyRoPEWithPlan(tensor, plan, options = {}) {
+function applyRoPEWithPlanInternal(tensor, plan, options = {}, splitHalf = false) {
   checkTensor(tensor, 'tensor');
   checkPlan(plan);
 
@@ -75,8 +75,8 @@ export function applyRoPEWithPlan(tensor, plan, options = {}) {
       const theta = absPos * invFreq[i];
       const cos = Math.cos(theta);
       const sin = Math.sin(theta);
-      const idx0 = offset + (i << 1);
-      const idx1 = idx0 + 1;
+      const idx0 = offset + (splitHalf ? i : (i << 1));
+      const idx1 = offset + (splitHalf ? i + halfDim : ((i << 1) + 1));
       const x0 = tensor[idx0];
       const x1 = tensor[idx1];
       tensor[idx0] = x0 * cos - x1 * sin;
@@ -87,8 +87,16 @@ export function applyRoPEWithPlan(tensor, plan, options = {}) {
   return tensor;
 }
 
+export function applyRoPEWithPlan(tensor, plan, options = {}) {
+  return applyRoPEWithPlanInternal(tensor, plan, options);
+}
+
 export function applyRoPE(tensor, headDim, options = {}) {
   return applyRoPEWithPlan(tensor, createRoPEPlan(headDim, options.base ?? DEFAULT_BASE), options);
+}
+
+export function applyRoPESplitHalf(tensor, headDim, options = {}) {
+  return applyRoPEWithPlanInternal(tensor, createRoPEPlan(headDim, options.base ?? DEFAULT_BASE), options, true);
 }
 
 export function applyToHead(head, pos, headDim, base = DEFAULT_BASE) {
