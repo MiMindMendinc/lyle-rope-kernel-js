@@ -1,8 +1,0 @@
-name: Disabled duplicate Pages workflow
-on:
-  workflow_dispatch:
-jobs:
-  noop:
-    runs-on: ubuntu-latest
-    steps:
-      - run: true

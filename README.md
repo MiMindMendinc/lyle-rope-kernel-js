@@ -72,7 +72,7 @@ npm run benchmark
 npm run benchmark:hot
 ```
 
-Local validation baseline from Node `v22.16.0` in this session. These numbers are not universal hardware claims; they are included as a reproducible marker for the current implementation.
+Local validation baseline measured on Node `v22.16.0`. These numbers are not universal hardware claims; they are included as a reproducible marker for the current implementation. Run the commands above to reproduce them on your own machine.
 
 ### Copy plus compute
 
