@@ -84,39 +84,51 @@ npm run benchmark:hot
 npm run benchmark:cached
 ```
 
-Local validation baseline measured on Node `v22.16.0`. These numbers are not universal hardware claims; they are included as a reproducible marker for the current implementation. Run the commands above to reproduce them on your own machine.
+Local validation baseline measured on Node `v22.14.0`. These numbers are not universal hardware claims; they are included as a reproducible marker for the current implementation. Run the commands above to reproduce them on your own machine.
 
 ### Copy plus compute
 
 | headDim | seqLen | throughput |
 | ---: | ---: | ---: |
-| 64 | 512 | 25.4 M pairs/sec |
-| 64 | 2048 | 31.6 M pairs/sec |
-| 64 | 8192 | 33.5 M pairs/sec |
-| 128 | 512 | 46.9 M pairs/sec |
-| 128 | 2048 | 40.5 M pairs/sec |
-| 128 | 8192 | 38.2 M pairs/sec |
-| 256 | 512 | 50.9 M pairs/sec |
-| 256 | 2048 | 46.9 M pairs/sec |
-| 256 | 8192 | 39.6 M pairs/sec |
+| 64 | 512 | 42.9 M pairs/sec |
+| 64 | 2048 | 45.6 M pairs/sec |
+| 64 | 8192 | 41.5 M pairs/sec |
+| 128 | 512 | 61.5 M pairs/sec |
+| 128 | 2048 | 51.8 M pairs/sec |
+| 128 | 8192 | 47.1 M pairs/sec |
+| 256 | 512 | 63.2 M pairs/sec |
+| 256 | 2048 | 55.4 M pairs/sec |
+| 256 | 8192 | 48.0 M pairs/sec |
 
 ### Precomputed plan hot path
 
 | headDim | seqLen | throughput |
 | ---: | ---: | ---: |
-| 64 | 512 | 50.1 M pairs/sec |
-| 64 | 2048 | 48.3 M pairs/sec |
-| 64 | 8192 | 40.9 M pairs/sec |
-| 128 | 512 | 60.3 M pairs/sec |
-| 128 | 2048 | 48.5 M pairs/sec |
-| 128 | 8192 | 43.2 M pairs/sec |
-| 256 | 512 | 56.8 M pairs/sec |
-| 256 | 2048 | 44.9 M pairs/sec |
-| 256 | 8192 | 41.4 M pairs/sec |
+| 64 | 512 | 59.0 M pairs/sec |
+| 64 | 2048 | 54.7 M pairs/sec |
+| 64 | 8192 | 47.7 M pairs/sec |
+| 128 | 512 | 68.5 M pairs/sec |
+| 128 | 2048 | 57.5 M pairs/sec |
+| 128 | 8192 | 48.8 M pairs/sec |
+| 256 | 512 | 70.5 M pairs/sec |
+| 256 | 2048 | 58.2 M pairs/sec |
+| 256 | 8192 | 50.6 M pairs/sec |
 
 ### Cached-plan hot path
 
 `npm run benchmark:cached` builds the trig cache before timing and measures only application. It is the relevant mode for workloads that repeatedly use a bounded context window.
+
+| headDim | seqLen | throughput |
+| ---: | ---: | ---: |
+| 64 | 512 | 220.5 M pairs/sec |
+| 64 | 2048 | 462.2 M pairs/sec |
+| 64 | 8192 | 396.7 M pairs/sec |
+| 128 | 512 | 476.1 M pairs/sec |
+| 128 | 2048 | 444.8 M pairs/sec |
+| 128 | 8192 | 399.6 M pairs/sec |
+| 256 | 512 | 470.8 M pairs/sec |
+| 256 | 2048 | 475.3 M pairs/sec |
+| 256 | 8192 | 475.0 M pairs/sec |
 
 ## Tests
 
