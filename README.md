@@ -2,7 +2,7 @@
 
 > Zero-dependency, in-place Rotary Position Embedding kernel for JavaScript inference experiments.
 
-![Tests](https://img.shields.io/badge/tests-14%2F14%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-17%2F17%20passing-brightgreen)
 ![Runtime](https://img.shields.io/badge/runtime-Node%2020%2B-blue)
 ![Dependencies](https://img.shields.io/badge/dependencies-0-success)
 ![Module](https://img.shields.io/badge/module-ESM-purple)
@@ -71,7 +71,13 @@ const cachedPlan = createRoPEPlan(128, 10000, { maxSeqLen: 8192 });
 applyRoPEWithPlan(q, cachedPlan, { startPos: 0, seqLen: 512 });
 ```
 
-The cache stores two `Float64Array`s of `maxSeqLen * (headDim / 2)` entries. Use it when the one-time memory cost is appropriate for a reused context window.
+The cache stores two `Float64Array`s of `maxSeqLen * (headDim / 2)` entries: `16 * maxSeqLen * (headDim / 2)` bytes in total. Use it only when that one-time memory cost is appropriate for a reused context window. The cache is opt-in; the default plan keeps the compact frequency-only representation.
+
+## Support and scope
+
+- Standard RoPE only. Scaling variants such as Llama 3, YaRN, and NTK are intentionally outside the core API for now.
+- The core is portable ESM using only standard JavaScript and typed arrays, so it can run in modern Node and browser runtimes.
+- Node 20 and Node 22 are verified in CI. WebGPU remains a preview fallback; the JavaScript path is the production path.
 
 ## Benchmarks
 
@@ -130,11 +136,13 @@ Local validation baseline measured on Node `v22.14.0`. These numbers are not uni
 | 256 | 2048 | 475.3 M pairs/sec |
 | 256 | 8192 | 475.0 M pairs/sec |
 
+`npm test` also includes a steady-state regression guard. It checks that the cached path remains at least 1.5× faster than the frequency-only plan for a fixed representative workload. It is a relative check, not a cross-machine throughput claim.
+
 ## Tests
 
-The suite covers known values, scalar reference parity, split-half parity, cached-plan parity and fallback, norm preservation, position-zero identity, `startPos`, partial `seqLen`, `applyToHead` parity, planned API parity, custom base behavior, long sequences, and invalid inputs.
+The suite covers known values, scalar reference parity, split-half parity, cached-plan parity across cache boundaries and supported dimensions, norm preservation, position-zero identity, `startPos`, partial `seqLen`, `applyToHead` parity, planned API parity, custom base behavior, long sequences, invalid inputs, and a relative hot-path regression guard.
 
-Current marker: `15 tests / 15 passing`.
+Current marker: `17 tests / 17 passing`.
 
 ## Layout note
 
