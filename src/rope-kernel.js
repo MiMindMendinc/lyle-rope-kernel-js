@@ -26,7 +26,7 @@ function checkBase(base) {
   }
 }
 
-export function createRoPEPlan(headDim, base = DEFAULT_BASE) {
+export function createRoPEPlan(headDim, base = DEFAULT_BASE, options = {}) {
   checkHeadDim(headDim);
   checkBase(base);
 
@@ -38,7 +38,27 @@ export function createRoPEPlan(headDim, base = DEFAULT_BASE) {
     invFreq[i] = 1.0 / Math.pow(base, (2 * i) * invHeadDim);
   }
 
-  return Object.freeze({ headDim, halfDim, base, invFreq });
+  const maxSeqLen = options.maxSeqLen ?? 0;
+  checkNonNegativeInteger(maxSeqLen, 'maxSeqLen');
+
+  let cosTable = null;
+  let sinTable = null;
+  if (maxSeqLen > 0) {
+    const tableLength = maxSeqLen * halfDim;
+    cosTable = new Float64Array(tableLength);
+    sinTable = new Float64Array(tableLength);
+
+    for (let pos = 0; pos < maxSeqLen; pos++) {
+      const tableOffset = pos * halfDim;
+      for (let i = 0; i < halfDim; i++) {
+        const theta = pos * invFreq[i];
+        cosTable[tableOffset + i] = Math.cos(theta);
+        sinTable[tableOffset + i] = Math.sin(theta);
+      }
+    }
+  }
+
+  return Object.freeze({ headDim, halfDim, base, invFreq, maxSeqLen, cosTable, sinTable });
 }
 
 function checkPlan(plan) {
@@ -49,15 +69,28 @@ function checkPlan(plan) {
       plan.invFreq.length !== plan.halfDim) {
     throw new TypeError('plan must be created by createRoPEPlan');
   }
+
+  const hasCache = plan.maxSeqLen !== undefined ||
+    plan.cosTable !== undefined || plan.sinTable !== undefined;
+  if (hasCache && (
+    !Number.isInteger(plan.maxSeqLen) || plan.maxSeqLen < 0 ||
+    (plan.maxSeqLen === 0 && (plan.cosTable !== null || plan.sinTable !== null)) ||
+    (plan.maxSeqLen > 0 && (
+      !(plan.cosTable instanceof Float64Array) ||
+      !(plan.sinTable instanceof Float64Array) ||
+      plan.cosTable.length !== plan.maxSeqLen * plan.halfDim ||
+      plan.sinTable.length !== plan.maxSeqLen * plan.halfDim
+    ))
+  )) {
+    throw new TypeError('plan cache must be created by createRoPEPlan');
+  }
 }
 
-function applyRoPEWithPlanInternal(tensor, plan, options = {}, splitHalf = false) {
+function getApplyConfig(tensor, plan, options) {
   checkTensor(tensor, 'tensor');
   checkPlan(plan);
 
-  const headDim = plan.headDim;
-  const halfDim = plan.halfDim;
-  const invFreq = plan.invFreq;
+  const { headDim, halfDim, invFreq } = plan;
   const startPos = options.startPos ?? 0;
   const seqLen = options.seqLen ?? Math.floor(tensor.length / headDim);
 
@@ -68,19 +101,82 @@ function applyRoPEWithPlanInternal(tensor, plan, options = {}, splitHalf = false
     throw new RangeError('seqLen * headDim exceeds tensor length');
   }
 
+  return {
+    headDim,
+    halfDim,
+    invFreq,
+    startPos,
+    seqLen,
+    maxSeqLen: plan.maxSeqLen ?? 0,
+    cosTable: plan.cosTable,
+    sinTable: plan.sinTable,
+  };
+}
+
+function applyAdjacentPairs(tensor, config) {
+  const { headDim, halfDim, invFreq, startPos, seqLen, maxSeqLen, cosTable, sinTable } = config;
   let offset = 0;
   for (let pos = 0; pos < seqLen; pos++) {
     const absPos = startPos + pos;
-    for (let i = 0; i < halfDim; i++) {
-      const theta = absPos * invFreq[i];
-      const cos = Math.cos(theta);
-      const sin = Math.sin(theta);
-      const idx0 = offset + (splitHalf ? i : (i << 1));
-      const idx1 = offset + (splitHalf ? i + halfDim : ((i << 1) + 1));
-      const x0 = tensor[idx0];
-      const x1 = tensor[idx1];
-      tensor[idx0] = x0 * cos - x1 * sin;
-      tensor[idx1] = x0 * sin + x1 * cos;
+    if (absPos !== 0) {
+      if (absPos < maxSeqLen) {
+        const tableOffset = absPos * halfDim;
+        for (let i = 0, idx = offset; i < halfDim; i++, idx += 2) {
+          const cos = cosTable[tableOffset + i];
+          const sin = sinTable[tableOffset + i];
+          const x0 = tensor[idx];
+          const x1 = tensor[idx + 1];
+          tensor[idx] = x0 * cos - x1 * sin;
+          tensor[idx + 1] = x0 * sin + x1 * cos;
+        }
+      } else {
+        for (let i = 0, idx = offset; i < halfDim; i++, idx += 2) {
+          const theta = absPos * invFreq[i];
+          const cos = Math.cos(theta);
+          const sin = Math.sin(theta);
+          const x0 = tensor[idx];
+          const x1 = tensor[idx + 1];
+          tensor[idx] = x0 * cos - x1 * sin;
+          tensor[idx + 1] = x0 * sin + x1 * cos;
+        }
+      }
+    }
+    offset += headDim;
+  }
+  return tensor;
+}
+
+function applySplitHalves(tensor, config) {
+  const { headDim, halfDim, invFreq, startPos, seqLen, maxSeqLen, cosTable, sinTable } = config;
+  let offset = 0;
+  for (let pos = 0; pos < seqLen; pos++) {
+    const absPos = startPos + pos;
+    if (absPos !== 0) {
+      if (absPos < maxSeqLen) {
+        const tableOffset = absPos * halfDim;
+        for (let i = 0; i < halfDim; i++) {
+          const cos = cosTable[tableOffset + i];
+          const sin = sinTable[tableOffset + i];
+          const idx0 = offset + i;
+          const idx1 = idx0 + halfDim;
+          const x0 = tensor[idx0];
+          const x1 = tensor[idx1];
+          tensor[idx0] = x0 * cos - x1 * sin;
+          tensor[idx1] = x0 * sin + x1 * cos;
+        }
+      } else {
+        for (let i = 0; i < halfDim; i++) {
+          const theta = absPos * invFreq[i];
+          const cos = Math.cos(theta);
+          const sin = Math.sin(theta);
+          const idx0 = offset + i;
+          const idx1 = idx0 + halfDim;
+          const x0 = tensor[idx0];
+          const x1 = tensor[idx1];
+          tensor[idx0] = x0 * cos - x1 * sin;
+          tensor[idx1] = x0 * sin + x1 * cos;
+        }
+      }
     }
     offset += headDim;
   }
@@ -88,15 +184,23 @@ function applyRoPEWithPlanInternal(tensor, plan, options = {}, splitHalf = false
 }
 
 export function applyRoPEWithPlan(tensor, plan, options = {}) {
-  return applyRoPEWithPlanInternal(tensor, plan, options);
+  return applyAdjacentPairs(tensor, getApplyConfig(tensor, plan, options));
 }
 
 export function applyRoPE(tensor, headDim, options = {}) {
   return applyRoPEWithPlan(tensor, createRoPEPlan(headDim, options.base ?? DEFAULT_BASE), options);
 }
 
+export function applyRoPESplitHalfWithPlan(tensor, plan, options = {}) {
+  return applySplitHalves(tensor, getApplyConfig(tensor, plan, options));
+}
+
 export function applyRoPESplitHalf(tensor, headDim, options = {}) {
-  return applyRoPEWithPlanInternal(tensor, createRoPEPlan(headDim, options.base ?? DEFAULT_BASE), options, true);
+  return applyRoPESplitHalfWithPlan(
+    tensor,
+    createRoPEPlan(headDim, options.base ?? DEFAULT_BASE),
+    options,
+  );
 }
 
 export function applyToHead(head, pos, headDim, base = DEFAULT_BASE) {

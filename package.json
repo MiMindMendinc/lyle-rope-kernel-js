@@ -12,7 +12,8 @@
   "scripts": {
     "test": "node --test",
     "benchmark": "node benchmark.js",
-    "benchmark:hot": "node benchmark.js --mode=hot"
+    "benchmark:hot": "node benchmark.js --mode=hot",
+    "benchmark:cached": "node benchmark.js --mode=cached"
   },
   "keywords": ["rope", "llm", "transformer", "javascript", "inference"],
   "engines": {

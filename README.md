@@ -13,11 +13,11 @@
 
 | Plaque | Status |
 | --- | --- |
-| Correctness Gate | 14/14 tests passing |
+| Correctness Gate | 15/15 tests passing |
 | Reference Gate | deterministic scalar reference parity |
 | Stability Gate | L2 norm preservation checked |
 | KV Cache Gate | startPos continuation checked |
-| Hot Path Gate | reusable precomputed RoPE plan |
+| Hot Path Gate | reusable frequency and optional trig-cache plans |
 | Dependency Gate | zero runtime dependencies |
 | Claim Hygiene Gate | no unsupported fastest or fake benchmark claims |
 | WebGPU Gate | preview fallback only |
@@ -26,6 +26,7 @@
 
 - In-place Float32Array rotation.
 - Reusable precomputed RoPE plan API.
+- Optional precomputed trig cache for bounded context windows.
 - KV-cache continuation through startPos.
 - Deterministic known-value tests.
 - Independent scalar reference parity tests.
@@ -39,7 +40,8 @@ Exports:
 
 - `applyRoPE(tensor, headDim, options)`
 - `applyRoPESplitHalf(tensor, headDim, options)`
-- `createRoPEPlan(headDim, base)`
+- `applyRoPESplitHalfWithPlan(tensor, plan, options)`
+- `createRoPEPlan(headDim, base, options)`
 - `applyRoPEWithPlan(tensor, plan, options)`
 - `applyToHead(head, pos, headDim, base)`
 - `verifyNormPreservation(original, afterRoPE, tolerance)`
@@ -62,6 +64,15 @@ applyRoPEWithPlan(q, plan, { startPos: 1024, seqLen: 8 });
 applyRoPEWithPlan(k, plan, { startPos: 1024, seqLen: 8 });
 ```
 
+For a bounded context window, add `maxSeqLen` when creating a plan. This precomputes the exact sine/cosine values once, so subsequent calls avoid trigonometry for positions inside that window. Calls outside it remain correct and use the normal math path.
+
+```js
+const cachedPlan = createRoPEPlan(128, 10000, { maxSeqLen: 8192 });
+applyRoPEWithPlan(q, cachedPlan, { startPos: 0, seqLen: 512 });
+```
+
+The cache stores two `Float64Array`s of `maxSeqLen * (headDim / 2)` entries. Use it when the one-time memory cost is appropriate for a reused context window.
+
 ## Benchmarks
 
 Commands:
@@ -70,6 +81,7 @@ Commands:
 npm test
 npm run benchmark
 npm run benchmark:hot
+npm run benchmark:cached
 ```
 
 Local validation baseline measured on Node `v22.16.0`. These numbers are not universal hardware claims; they are included as a reproducible marker for the current implementation. Run the commands above to reproduce them on your own machine.
@@ -102,11 +114,15 @@ Local validation baseline measured on Node `v22.16.0`. These numbers are not uni
 | 256 | 2048 | 44.9 M pairs/sec |
 | 256 | 8192 | 41.4 M pairs/sec |
 
+### Cached-plan hot path
+
+`npm run benchmark:cached` builds the trig cache before timing and measures only application. It is the relevant mode for workloads that repeatedly use a bounded context window.
+
 ## Tests
 
-The suite covers known values, scalar reference parity, split-half parity, norm preservation, position-zero identity, `startPos`, partial `seqLen`, `applyToHead` parity, planned API parity, custom base behavior, long sequences, and invalid inputs.
+The suite covers known values, scalar reference parity, split-half parity, cached-plan parity and fallback, norm preservation, position-zero identity, `startPos`, partial `seqLen`, `applyToHead` parity, planned API parity, custom base behavior, long sequences, and invalid inputs.
 
-Current marker: `14 tests / 14 passing`.
+Current marker: `15 tests / 15 passing`.
 
 ## Layout note
 

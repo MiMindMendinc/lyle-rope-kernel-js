@@ -3,21 +3,22 @@
  * Shows drop-in usage for real attention layers
  */
 
-import { applyRoPE } from '../src/rope-kernel.js';
+import { applyRoPEWithPlan, createRoPEPlan } from '../src/rope-kernel.js';
 
 export class SimpleAttention {
   constructor(headDim = 128, nHeads = 8) {
     this.headDim = headDim;
     this.nHeads = nHeads;
     this.scale = 1 / Math.sqrt(headDim);
+    this.ropePlan = createRoPEPlan(headDim);
   }
 
   forward(q, k, v, startPos = 0) {
     const seqLen = q.length / this.headDim;
     
-    // Apply RoPE to Q and K (in-place, zero alloc)
-    applyRoPE(q, this.headDim, { startPos });
-    applyRoPE(k, this.headDim, { startPos });
+    // Apply RoPE to Q and K (in-place, no per-call plan allocation).
+    applyRoPEWithPlan(q, this.ropePlan, { startPos, seqLen });
+    applyRoPEWithPlan(k, this.ropePlan, { startPos, seqLen });
 
     // Simple scaled dot-product attention (for demo)
     const scores = new Float32Array(seqLen * seqLen);
