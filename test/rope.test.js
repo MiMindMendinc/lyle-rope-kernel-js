@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyRoPE, applyRoPEWithPlan, applyRoPESplitHalf, applyToHead, createRoPEPlan, verifyNormPreservation, DEFAULT_BASE } from '../src/rope-kernel.js';
+import { applyRoPE, applyRoPEWithPlan, applyRoPESplitHalf, applyRoPESplitHalfWithPlan, applyToHead, createRoPEPlan, verifyNormPreservation, DEFAULT_BASE } from '../src/rope-kernel.js';
 
 const EPS = 1e-6;
 function close(a, b, msg) { assert.ok(Math.abs(a - b) <= EPS, msg + ': ' + a + ' != ' + b); }
@@ -126,6 +126,47 @@ describe('lyle-rope-kernel', () => {
     for (let i = 0; i < a.length; i++) close(a[i], b[i], 'plan ' + i);
   });
 
+  it('uses a cached plan without changing results and falls back beyond its range', () => {
+    const headDim = 16, seqLen = 6, startPos = 3;
+    const x = new Float32Array(seqLen * headDim);
+    for (let i = 0; i < x.length; i++) x[i] = Math.sin(i / 7) * 0.5;
+
+    const cached = new Float32Array(x);
+    const direct = new Float32Array(x);
+    const plan = createRoPEPlan(headDim, DEFAULT_BASE, { maxSeqLen: 5 });
+    applyRoPEWithPlan(cached, plan, { startPos, seqLen });
+    applyRoPE(direct, headDim, { startPos, seqLen });
+
+    for (let i = 0; i < cached.length; i++) close(cached[i], direct[i], 'cached ' + i);
+
+    const splitCached = new Float32Array(x);
+    const splitDirect = new Float32Array(x);
+    applyRoPESplitHalfWithPlan(splitCached, plan, { startPos, seqLen });
+    applyRoPESplitHalf(splitDirect, headDim, { startPos, seqLen });
+    for (let i = 0; i < splitCached.length; i++) close(splitCached[i], splitDirect[i], 'cached split ' + i);
+  });
+
+  it('matches direct RoPE across cache boundaries and supported dimensions', () => {
+    for (const headDim of [2, 4, 8, 64]) {
+      for (const base of [10000, 500000]) {
+        const seqLen = 4;
+        const input = new Float32Array(seqLen * headDim);
+        for (let i = 0; i < input.length; i++) input[i] = Math.sin(i * 0.13) * 0.75;
+        const plan = createRoPEPlan(headDim, base, { maxSeqLen: 5 });
+
+        for (const startPos of [0, 1, 4, 5]) {
+          const cached = new Float32Array(input);
+          const direct = new Float32Array(input);
+          applyRoPEWithPlan(cached, plan, { startPos, seqLen });
+          applyRoPE(direct, headDim, { base, startPos, seqLen });
+          for (let i = 0; i < cached.length; i++) {
+            close(cached[i], direct[i], `cache boundary dim=${headDim} base=${base} pos=${startPos} i=${i}`);
+          }
+        }
+      }
+    }
+  });
+
   it('custom base changes output', () => {
     const a = new Float32Array([1,2,3,4,5,6,7,8]);
     const b = new Float32Array(a);
@@ -149,5 +190,7 @@ describe('lyle-rope-kernel', () => {
     assert.throws(() => applyRoPE(new Float32Array(4), 4, { startPos: -1 }), /startPos/);
     assert.throws(() => applyRoPE(new Float32Array(4), 4, { seqLen: 2 }), /exceeds tensor length/);
     assert.throws(() => createRoPEPlan(4, 0), /base/);
+    assert.throws(() => createRoPEPlan(4, 10000, { maxSeqLen: -1 }), /maxSeqLen/);
+    assert.throws(() => createRoPEPlan(4, 10000, { maxSeqLen: 1.5 }), /maxSeqLen/);
   });
 });
