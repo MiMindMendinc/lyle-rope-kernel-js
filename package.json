@@ -16,6 +16,14 @@
     "benchmark:cached": "node benchmark.js --mode=cached"
   },
   "keywords": ["rope", "llm", "transformer", "javascript", "inference"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MiMindMendinc/lyle-rope-kernel-js.git"
+  },
+  "homepage": "https://mimindmendinc.github.io/lyle-rope-kernel-js/",
+  "bugs": {
+    "url": "https://github.com/MiMindMendinc/lyle-rope-kernel-js/issues"
+  },
   "engines": {
     "node": ">=20"
   },

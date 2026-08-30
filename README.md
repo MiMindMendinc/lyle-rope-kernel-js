@@ -7,13 +7,13 @@
 ![Dependencies](https://img.shields.io/badge/dependencies-0-success)
 ![Module](https://img.shields.io/badge/module-ESM-purple)
 ![License](https://img.shields.io/badge/license-MIT-yellow)
-![Status](https://img.shields.io/badge/status-release%20candidate-success)
+![Status](https://img.shields.io/badge/status-verified-success)
 
 ## Plaques
 
 | Plaque | Status |
 | --- | --- |
-| Correctness Gate | 15/15 tests passing |
+| Correctness Gate | 15/15 core correctness tests; 17/17 total suite |
 | Reference Gate | deterministic scalar reference parity |
 | Stability Gate | L2 norm preservation checked |
 | KV Cache Gate | startPos continuation checked |
