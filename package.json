@@ -13,7 +13,8 @@
     "test": "node --test",
     "benchmark": "node benchmark.js",
     "benchmark:hot": "node benchmark.js --mode=hot",
-    "benchmark:cached": "node benchmark.js --mode=cached"
+    "benchmark:cached": "node benchmark.js --mode=cached",
+    "benchmark:qk": "node benchmark-qk.js"
   },
   "keywords": ["rope", "llm", "transformer", "javascript", "inference"],
   "repository": {

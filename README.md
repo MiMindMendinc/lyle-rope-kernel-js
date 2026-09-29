@@ -2,7 +2,7 @@
 
 > Zero-dependency, in-place Rotary Position Embedding kernel for JavaScript inference experiments.
 
-![Tests](https://img.shields.io/badge/tests-17%2F17%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-21%2F21%20passing-brightgreen)
 ![Runtime](https://img.shields.io/badge/runtime-Node%2020%2B-blue)
 ![Dependencies](https://img.shields.io/badge/dependencies-0-success)
 ![Module](https://img.shields.io/badge/module-ESM-purple)
@@ -13,7 +13,7 @@
 
 | Plaque | Status |
 | --- | --- |
-| Correctness Gate | 15/15 core correctness tests; 17/17 total suite |
+| Correctness Gate | 21/21 local tests, including packed Q/K reference parity |
 | Reference Gate | deterministic scalar reference parity |
 | Stability Gate | L2 norm preservation checked |
 | KV Cache Gate | startPos continuation checked |
@@ -43,6 +43,7 @@ Exports:
 - `applyRoPESplitHalfWithPlan(tensor, plan, options)`
 - `createRoPEPlan(headDim, base, options)`
 - `applyRoPEWithPlan(tensor, plan, options)`
+- `applyRoPEQK(q, k, plan, options)`
 - `applyToHead(head, pos, headDim, base)`
 - `verifyNormPreservation(original, afterRoPE, tolerance)`
 
@@ -73,6 +74,22 @@ applyRoPEWithPlan(q, cachedPlan, { startPos: 0, seqLen: 512 });
 
 The cache stores two `Float64Array`s of `maxSeqLen * (headDim / 2)` entries: `16 * maxSeqLen * (headDim / 2)` bytes in total. Use it only when that one-time memory cost is appropriate for a reused context window. The cache is opt-in; the default plan keeps the compact frequency-only representation.
 
+### Packed Q/K for grouped-query attention
+
+`applyRoPEQK` takes contiguous `Float32Array` tensors shaped `[seqLen, qHeads, headDim]` and `[seqLen, kvHeads, headDim]`. It rotates every head for a token at the **same** absolute position and computes each sine/cosine pair once for that token and dimension. It supports different Q/K head counts, the optional bounded trig cache, and both `adjacent` and `split-half` layouts. Values (V) are not rotated. Inputs are changed in place; malformed shapes and overlapping Q/K views are rejected before either input changes.
+
+```js
+import { applyRoPEQK, createRoPEPlan } from 'lyle-rope-kernel';
+
+const headDim = 128, qHeads = 32, kvHeads = 8, seqLen = 1;
+const q = new Float32Array(seqLen * qHeads * headDim);
+const k = new Float32Array(seqLen * kvHeads * headDim);
+const plan = createRoPEPlan(headDim); // reuse across decode steps
+applyRoPEQK(q, k, plan, { qHeads, kvHeads, startPos: 1024, layout: 'adjacent' });
+```
+
+`seqLen` defaults to the complete Q tensor; both tensor lengths must exactly match the packed shapes. Run `node examples/packed-qk.js` for a small executable example. This operation covers RoPE only; it is not an attention or KV-cache implementation.
+
 ## Support and scope
 
 - Standard RoPE only. Scaling variants such as Llama 3, YaRN, and NTK are intentionally outside the core API for now.
@@ -88,6 +105,7 @@ npm test
 npm run benchmark
 npm run benchmark:hot
 npm run benchmark:cached
+npm run benchmark:qk
 ```
 
 Local validation baseline measured on Node `v22.14.0`. These numbers are not universal hardware claims; they are included as a reproducible marker for the current implementation. Run the commands above to reproduce them on your own machine.
@@ -138,11 +156,13 @@ Local validation baseline measured on Node `v22.14.0`. These numbers are not uni
 
 `npm test` also includes a steady-state regression guard. It checks that the cached path remains at least 1.5× faster than the frequency-only plan for a fixed representative workload. It is a relative check, not a cross-machine throughput claim.
 
+`npm run benchmark:qk` measures a 32-query-head/8-key-head workload against per-head calls to this package. It prints both timings and the Node version. The comparison includes tensor copies in both modes and excludes plan construction; it is not a comparison against another library or a GPU kernel.
+
 ## Tests
 
-The suite covers known values, scalar reference parity, split-half parity, cached-plan parity across cache boundaries and supported dimensions, norm preservation, position-zero identity, `startPos`, partial `seqLen`, `applyToHead` parity, planned API parity, custom base behavior, long sequences, invalid inputs, and a relative hot-path regression guard.
+The suite covers known values, scalar reference parity, split-half parity, cached-plan parity across cache boundaries and supported dimensions, norm preservation, position-zero identity, `startPos`, partial `seqLen`, `applyToHead` parity, planned API parity, custom base behavior, long sequences, packed Q/K parity with independent per-head scalar references, invalid inputs, and a relative hot-path regression guard.
 
-Current marker: `17 tests / 17 passing`.
+Current local marker: `21 tests / 21 passing` on Node 24. GitHub CI separately runs Node 20 and 22 when the change is submitted.
 
 ## Layout note
 

@@ -203,6 +203,74 @@ export function applyRoPESplitHalf(tensor, headDim, options = {}) {
   );
 }
 
+/**
+ * Rotate packed Q and K tensors in place. Shapes are [seqLen, qHeads, headDim]
+ * and [seqLen, kvHeads, headDim]; both tensors use the same absolute position
+ * for every head belonging to a token. V is intentionally left untouched.
+ */
+export function applyRoPEQK(q, k, plan, options = {}) {
+  checkTensor(q, 'q');
+  checkTensor(k, 'k');
+  checkPlan(plan);
+
+  const { qHeads, kvHeads, startPos = 0, layout = 'adjacent' } = options;
+  if (!Number.isSafeInteger(qHeads) || qHeads <= 0 ||
+      !Number.isSafeInteger(kvHeads) || kvHeads <= 0) {
+    throw new RangeError('qHeads and kvHeads must be positive safe integers');
+  }
+  checkNonNegativeInteger(startPos, 'startPos');
+  if (!Number.isSafeInteger(startPos)) throw new RangeError('startPos must be a safe integer');
+  if (layout !== 'adjacent' && layout !== 'split-half') {
+    throw new RangeError('layout must be adjacent or split-half');
+  }
+  const qStride = qHeads * plan.headDim;
+  const kStride = kvHeads * plan.headDim;
+  if (!Number.isSafeInteger(qStride) || !Number.isSafeInteger(kStride)) {
+    throw new RangeError('head count and dimension exceed safe integer range');
+  }
+  const seqLen = options.seqLen ?? q.length / qStride;
+  checkNonNegativeInteger(seqLen, 'seqLen');
+  if (!Number.isSafeInteger(seqLen) ||
+      q.length !== seqLen * qStride || k.length !== seqLen * kStride ||
+      !Number.isSafeInteger(startPos + seqLen)) {
+    throw new RangeError('Q/K lengths must match seqLen and their packed head counts');
+  }
+  // Shared or partially overlapping views would rotate some elements twice.
+  if (q.buffer === k.buffer &&
+      q.byteOffset < k.byteOffset + k.byteLength &&
+      k.byteOffset < q.byteOffset + q.byteLength) {
+    throw new RangeError('q and k must not overlap');
+  }
+
+  const { halfDim, invFreq, maxSeqLen, cosTable, sinTable } = plan;
+  for (let pos = 0; pos < seqLen; pos++) {
+    const absPos = startPos + pos;
+    if (absPos === 0) continue;
+    const cached = absPos < maxSeqLen;
+    const tableOffset = absPos * halfDim;
+    for (let i = 0; i < halfDim; i++) {
+      const theta = cached ? 0 : absPos * invFreq[i];
+      const cos = cached ? cosTable[tableOffset + i] : Math.cos(theta);
+      const sin = cached ? sinTable[tableOffset + i] : Math.sin(theta);
+      for (let kind = 0; kind < 2; kind++) {
+        const tensor = kind === 0 ? q : k;
+        const count = kind === 0 ? qHeads : kvHeads;
+        const stride = kind === 0 ? qStride : kStride;
+        for (let head = 0; head < count; head++) {
+          const idx0 = pos * stride + head * plan.headDim +
+            (layout === 'adjacent' ? i * 2 : i);
+          const idx1 = idx0 + (layout === 'adjacent' ? 1 : halfDim);
+          const x0 = tensor[idx0];
+          const x1 = tensor[idx1];
+          tensor[idx0] = x0 * cos - x1 * sin;
+          tensor[idx1] = x0 * sin + x1 * cos;
+        }
+      }
+    }
+  }
+  return { q, k };
+}
+
 export function applyToHead(head, pos, headDim, base = DEFAULT_BASE) {
   checkTensor(head, 'head');
   checkHeadDim(headDim);
