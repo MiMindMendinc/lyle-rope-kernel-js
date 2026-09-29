@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyRoPE, applyRoPEWithPlan, applyRoPESplitHalf, applyRoPESplitHalfWithPlan, applyToHead, createRoPEPlan, verifyNormPreservation, DEFAULT_BASE } from '../src/rope-kernel.js';
+import { applyRoPE, applyRoPEWithPlan, applyRoPESplitHalf, applyRoPESplitHalfWithPlan, applyRoPEQK, applyToHead, createRoPEPlan, verifyNormPreservation, DEFAULT_BASE } from '../src/rope-kernel.js';
 
 const EPS = 1e-6;
 function close(a, b, msg) { assert.ok(Math.abs(a - b) <= EPS, msg + ': ' + a + ' != ' + b); }
@@ -192,5 +192,57 @@ describe('lyle-rope-kernel', () => {
     assert.throws(() => createRoPEPlan(4, 0), /base/);
     assert.throws(() => createRoPEPlan(4, 10000, { maxSeqLen: -1 }), /maxSeqLen/);
     assert.throws(() => createRoPEPlan(4, 10000, { maxSeqLen: 1.5 }), /maxSeqLen/);
+  });
+});
+
+describe('packed Q/K RoPE', () => {
+  for (const layout of ['adjacent', 'split-half']) {
+    it(`matches independent per-head reference for ${layout}, including cache boundary`, () => {
+      const headDim = 8, qHeads = 4, kvHeads = 2, seqLen = 5, startPos = 3;
+      const q = Float32Array.from({ length: seqLen * qHeads * headDim }, (_, i) => Math.sin(i / 9));
+      const k = Float32Array.from({ length: seqLen * kvHeads * headDim }, (_, i) => Math.cos(i / 11));
+      const expectedQ = new Float32Array(q), expectedK = new Float32Array(k);
+      const scalar = layout === 'adjacent' ? ref : refSplitHalf;
+      for (const [tensor, heads] of [[expectedQ, qHeads], [expectedK, kvHeads]]) {
+        for (let pos = 0; pos < seqLen; pos++) {
+          for (let head = 0; head < heads; head++) {
+            const offset = (pos * heads + head) * headDim;
+            tensor.set(scalar(tensor.subarray(offset, offset + headDim), headDim, {
+              startPos: startPos + pos, seqLen: 1,
+            }), offset);
+          }
+        }
+      }
+      const returned = applyRoPEQK(q, k, createRoPEPlan(headDim, DEFAULT_BASE, { maxSeqLen: 5 }), {
+        qHeads, kvHeads, seqLen, startPos, layout,
+      });
+      assert.equal(returned.q, q);
+      assert.equal(returned.k, k);
+      for (let i = 0; i < q.length; i++) close(q[i], expectedQ[i], `Q ${i}`);
+      for (let i = 0; i < k.length; i++) close(k[i], expectedK[i], `K ${i}`);
+    });
+  }
+
+  it('keeps token zero as identity and accepts nonoverlapping views of one buffer', () => {
+    const buffer = new ArrayBuffer(16 * Float32Array.BYTES_PER_ELEMENT);
+    const q = new Float32Array(buffer, 0, 8).fill(0.5);
+    const k = new Float32Array(buffer, 8 * Float32Array.BYTES_PER_ELEMENT, 8).fill(0.25);
+    applyRoPEQK(q, k, createRoPEPlan(4), { qHeads: 2, kvHeads: 2 });
+    assert.deepEqual(Array.from(q), Array(8).fill(0.5));
+    assert.deepEqual(Array.from(k), Array(8).fill(0.25));
+  });
+
+  it('rejects bad shapes and overlapping views before modifying either input', () => {
+    const plan = createRoPEPlan(4);
+    const q = new Float32Array(8).fill(1), k = new Float32Array(4).fill(2);
+    const opts = { qHeads: 2, kvHeads: 1 };
+    assert.throws(() => applyRoPEQK(q, k, plan, { ...opts, seqLen: 2 }), /lengths/);
+    assert.throws(() => applyRoPEQK(q, k, plan, { ...opts, layout: 'other' }), /layout/);
+    assert.throws(() => applyRoPEQK(q, k, plan, { ...opts, qHeads: 0 }), /qHeads/);
+    assert.throws(() => applyRoPEQK(q, k, plan, { ...opts, startPos: Number.MAX_SAFE_INTEGER }), /lengths/);
+    const shared = new Float32Array(12);
+    assert.throws(() => applyRoPEQK(shared.subarray(0, 8), shared.subarray(4, 8), plan, opts), /overlap/);
+    assert.deepEqual(Array.from(q), Array(8).fill(1));
+    assert.deepEqual(Array.from(k), Array(4).fill(2));
   });
 });
