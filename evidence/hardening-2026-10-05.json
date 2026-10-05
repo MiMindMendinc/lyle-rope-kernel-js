@@ -1,0 +1,346 @@
+{
+  "schemaVersion": 1,
+  "status": "pass",
+  "generatedAt": "2026-10-05T05:44:03.214Z",
+  "source": {
+    "commit": "b9718a62b22e55e7e3b4e13508790d18279f6ff8",
+    "dirty": false,
+    "fileSha256": {
+      "bench/cached-regression.mjs": "7c1d1ca543d9f20bed3190b7a2df604308800801301a66abda618ebe27430a94",
+      "examples/minimal-transformer.js": "772df30b4838f503811ec571c62d55373cfd84158c7d2f77982e886b9e8f4c78",
+      "examples/packed-qk.js": "922dee1075bfb3f8d715f47f00b674055be423a7e66cc2df842730f1e4f837f4",
+      "package-lock.json": "74c28bc6c0d95ebc209b7f8441b1f69a63d7c16165242a0a8e0dc6980cff7e68",
+      "package.json": "4067f7c42a531891ad129e494ea540a921b3e896f015da608895667cce6dc581",
+      "scripts/evidence.mjs": "70aa89a9cf0808149580404fc376294f2f753224c250ab7ae6e29a3e1ccae1ba",
+      "scripts/package-smoke.mjs": "9bedaf4bbb7f18919e430af22aea4efa4de09050cd15bb227ed3555558cdabcd",
+      "src/rope-kernel.js": "85c8e87344c13cd078f2122c384418373c55dbdb2b2d0c0cdad8091ae1f85e22",
+      "src/webgpu-rope.js": "2b0520f11b049065d3150f8bcb5d254257a320ee7458eb144d830f2a440a9761",
+      "support/reference.mjs": "7e5b8ee06a5be7bf5e2eb7647b0c5cd98c9316d9cc394b5f773c0803da9164bc",
+      "test/example.test.js": "b5feb471a66077526f57d0b0eeddc9fb4f69d283718517565c30b0453bea0b66",
+      "test/hardening.test.js": "8fea0cf8314ea752bce772fc910a4c88808670f7eadc3062f1752c606d735840",
+      "test/rope.test.js": "25d00128dbe8fb7bc659349fb3d936f94f8fa1dd2ad99d72547ddd0236e73176"
+    }
+  },
+  "environment": {
+    "node": "v22.16.0",
+    "v8": "12.4.254.21-node.26",
+    "platform": "linux",
+    "osRelease": "6.18.44",
+    "arch": "x64",
+    "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+    "logicalCpus": 5,
+    "availableParallelism": 4,
+    "qualification": "Reported environment only; dedicated hardware is not established."
+  },
+  "tests": {
+    "command": "node --test --test-reporter=tap",
+    "exitCode": 0,
+    "tapSha256": "0699b0b95866e2e8ce42b30f3747860c64ad0f0f704671c7b5daca9ac601c94f",
+    "tapFile": "hardening-2026-10-05.json.tap",
+    "tests": 38,
+    "suites": 4,
+    "pass": 38,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "package": {
+    "status": "pass",
+    "version": "1.1.0-rc.1",
+    "files": [
+      "CHANGELOG.md",
+      "LICENSE",
+      "README.md",
+      "docs/NUMERICS.md",
+      "package.json",
+      "src/rope-kernel.js",
+      "src/webgpu-rope.js"
+    ],
+    "tarballSha256": "2ca0c0862943b7a66a2e337f975820fdb0d1147856ef9b8bfbbfdbc254daedce",
+    "packedBytes": 9968,
+    "unpackedBytes": 28055,
+    "install": "fresh tarball consumer; offline; fresh npm cache; lifecycle scripts disabled",
+    "probe": "PASS: installed package exports, numerical fixture, range guard and CPU fallback"
+  },
+  "numerics": {
+    "inputs": "deterministic Float32 values in [-1, 1]",
+    "positions": "sampled 3-token windows, absolute positions up to 131071; not exhaustive",
+    "results": [
+      {
+        "layout": "adjacent",
+        "cases": 378,
+        "maxAbsError": 0,
+        "tolerance": 0.000001
+      },
+      {
+        "layout": "split-half",
+        "cases": 378,
+        "maxAbsError": 0,
+        "tolerance": 0.000001
+      }
+    ]
+  },
+  "benchmarks": [
+    {
+      "headDim": 128,
+      "seqLen": 1,
+      "qHeads": 32,
+      "kvHeads": 8,
+      "startPos": 1024,
+      "layout": "adjacent",
+      "warmups": 10,
+      "samples": 7,
+      "iterations": 100,
+      "method": "All modes include fresh Q/K copies and checksum consumption. Plan construction excluded. No external library or GPU baseline.",
+      "plans": {
+        "frequencyPlanMs": 0.021150999999917985,
+        "cachedPlanMs": 1.289487999999892,
+        "frequencyBytes": 512,
+        "cachedFrequencyBytes": 512,
+        "cachedTrigBytes": 1049600,
+        "cacheMaxSeqLen": 1025
+      },
+      "timing": {
+        "perHead": {
+          "rawMsPerRun": [
+            0.0646044599999982,
+            0.05253803000000062,
+            0.05136215999999877,
+            0.05706396999999924,
+            0.05424522000000025,
+            0.05082634999999982,
+            0.05173352000000023
+          ],
+          "medianMs": 0.05253803000000062,
+          "minMs": 0.05082634999999982,
+          "maxMs": 0.0646044599999982
+        },
+        "packed": {
+          "rawMsPerRun": [
+            0.008002380000000357,
+            0.008950720000000275,
+            0.010152630000000044,
+            0.01199961999999914,
+            0.012749550000000909,
+            0.008299839999999677,
+            0.008145400000000792
+          ],
+          "medianMs": 0.008950720000000275,
+          "minMs": 0.008002380000000357,
+          "maxMs": 0.012749550000000909
+        },
+        "packedCached": {
+          "rawMsPerRun": [
+            0.07577812999999878,
+            0.008169440000001487,
+            0.006602370000000519,
+            0.011530010000001312,
+            0.010662299999999049,
+            0.006889900000001035,
+            0.007186850000000505
+          ],
+          "medianMs": 0.008169440000001487,
+          "minMs": 0.006602370000000519,
+          "maxMs": 0.07577812999999878
+        }
+      },
+      "checksum": 5.403074026107788
+    },
+    {
+      "headDim": 128,
+      "seqLen": 128,
+      "qHeads": 32,
+      "kvHeads": 8,
+      "startPos": 1024,
+      "layout": "adjacent",
+      "warmups": 10,
+      "samples": 7,
+      "iterations": 20,
+      "method": "All modes include fresh Q/K copies and checksum consumption. Plan construction excluded. No external library or GPU baseline.",
+      "plans": {
+        "frequencyPlanMs": 0.01566299999990406,
+        "cachedPlanMs": 1.4153069999999843,
+        "frequencyBytes": 512,
+        "cachedFrequencyBytes": 512,
+        "cachedTrigBytes": 1179648,
+        "cacheMaxSeqLen": 1152
+      },
+      "timing": {
+        "perHead": {
+          "rawMsPerRun": [
+            6.299117950000005,
+            6.358492599999988,
+            6.397200550000003,
+            6.438299099999995,
+            6.325662999999986,
+            6.327241400000003,
+            6.378058099999999
+          ],
+          "medianMs": 6.358492599999988,
+          "minMs": 6.299117950000005,
+          "maxMs": 6.438299099999995
+        },
+        "packed": {
+          "rawMsPerRun": [
+            1.0878397000000064,
+            1.0382743000000005,
+            1.0143222000000152,
+            0.9782261500000005,
+            1.0025503999999956,
+            0.9644578999999794,
+            0.9545082999999976
+          ],
+          "medianMs": 1.0025503999999956,
+          "minMs": 0.9545082999999976,
+          "maxMs": 1.0878397000000064
+        },
+        "packedCached": {
+          "rawMsPerRun": [
+            0.8869157500000029,
+            0.7721349499999974,
+            0.8370094000000108,
+            0.8165144499999997,
+            0.768113399999993,
+            0.823802499999988,
+            0.7695785499999829
+          ],
+          "medianMs": 0.8165144499999997,
+          "minMs": 0.768113399999993,
+          "maxMs": 0.8869157500000029
+        }
+      },
+      "checksum": 531.1231970787048
+    },
+    {
+      "headDim": 128,
+      "seqLen": 1,
+      "qHeads": 32,
+      "kvHeads": 8,
+      "startPos": 1024,
+      "layout": "split-half",
+      "warmups": 10,
+      "samples": 7,
+      "iterations": 100,
+      "method": "All modes include fresh Q/K copies and checksum consumption. Plan construction excluded. No external library or GPU baseline.",
+      "plans": {
+        "frequencyPlanMs": 0.014381999999841355,
+        "cachedPlanMs": 1.2226059999998142,
+        "frequencyBytes": 512,
+        "cachedFrequencyBytes": 512,
+        "cachedTrigBytes": 1049600,
+        "cacheMaxSeqLen": 1025
+      },
+      "timing": {
+        "perHead": {
+          "rawMsPerRun": [
+            0.05588869000000159,
+            0.05147463999999673,
+            0.05270287999999709,
+            0.04954670999999962,
+            0.05254394999999931,
+            0.05159500999999636,
+            0.05089535999999953
+          ],
+          "medianMs": 0.05159500999999636,
+          "minMs": 0.04954670999999962,
+          "maxMs": 0.05588869000000159
+        },
+        "packed": {
+          "rawMsPerRun": [
+            0.009211810000001605,
+            0.009510770000001684,
+            0.00932778999999755,
+            0.009961939999998322,
+            0.009597389999998995,
+            0.011400410000001103,
+            0.009101850000001832
+          ],
+          "medianMs": 0.009510770000001684,
+          "minMs": 0.009101850000001832,
+          "maxMs": 0.011400410000001103
+        },
+        "packedCached": {
+          "rawMsPerRun": [
+            0.008244850000000952,
+            0.008875410000000557,
+            0.008299940000001697,
+            0.008189269999998033,
+            0.008152209999998376,
+            0.009418719999998756,
+            0.008280209999998078
+          ],
+          "medianMs": 0.008280209999998078,
+          "minMs": 0.008152209999998376,
+          "maxMs": 0.009418719999998756
+        }
+      },
+      "checksum": 851.6538778692484
+    },
+    {
+      "headDim": 128,
+      "seqLen": 128,
+      "qHeads": 32,
+      "kvHeads": 8,
+      "startPos": 1024,
+      "layout": "split-half",
+      "warmups": 10,
+      "samples": 7,
+      "iterations": 20,
+      "method": "All modes include fresh Q/K copies and checksum consumption. Plan construction excluded. No external library or GPU baseline.",
+      "plans": {
+        "frequencyPlanMs": 0.016634999999951106,
+        "cachedPlanMs": 1.3539450000002944,
+        "frequencyBytes": 512,
+        "cachedFrequencyBytes": 512,
+        "cachedTrigBytes": 1179648,
+        "cacheMaxSeqLen": 1152
+      },
+      "timing": {
+        "perHead": {
+          "rawMsPerRun": [
+            6.319733049999991,
+            6.2844067,
+            6.336525449999999,
+            6.320694500000013,
+            6.216526249999992,
+            6.301759899999979,
+            6.222432099999969
+          ],
+          "medianMs": 6.301759899999979,
+          "minMs": 6.216526249999992,
+          "maxMs": 6.336525449999999
+        },
+        "packed": {
+          "rawMsPerRun": [
+            1.1364154999999982,
+            1.1733964000000014,
+            1.152082200000018,
+            1.1042719999999917,
+            1.1394100499999922,
+            1.1171719500000108,
+            1.1146726999999828
+          ],
+          "medianMs": 1.1364154999999982,
+          "minMs": 1.1042719999999917,
+          "maxMs": 1.1733964000000014
+        },
+        "packedCached": {
+          "rawMsPerRun": [
+            0.9263989000000038,
+            1.0034947999999986,
+            0.9497386499999948,
+            0.921397849999994,
+            0.9398031500000116,
+            0.9524372500000027,
+            0.9362447499999689
+          ],
+          "medianMs": 0.9398031500000116,
+          "minMs": 0.921397849999994,
+          "maxMs": 1.0034947999999986
+        }
+      },
+      "checksum": 471.1182788014412
+    }
+  ]
+}
