@@ -1,4 +1,25 @@
 const DEFAULT_BASE = 10000.0;
+const createdPlans = new WeakSet();
+
+function checkOptions(options) {
+  if (!options || typeof options !== 'object' || Array.isArray(options)) {
+    throw new TypeError('options must be an object');
+  }
+}
+
+function safeProduct(a, b, name) {
+  const result = a * b;
+  if (!Number.isSafeInteger(result)) {
+    throw new RangeError(name + ' exceeds safe integer range');
+  }
+  return result;
+}
+
+function checkAngleRange(invFreq, startPos, seqLen) {
+  if (seqLen > 0 && !Number.isFinite(
+    (startPos + seqLen - 1) * Math.max(1, invFreq[invFreq.length - 1]),
+  )) throw new RangeError('position and base produce a non-finite angle');
+}
 
 function isF32(x) {
   return x instanceof Float32Array;
@@ -9,14 +30,14 @@ function checkTensor(tensor, name) {
 }
 
 function checkHeadDim(headDim) {
-  if (!Number.isInteger(headDim) || headDim <= 0 || headDim % 2 !== 0) {
-    throw new RangeError('headDim must be a positive even integer');
+  if (!Number.isSafeInteger(headDim) || headDim <= 0 || headDim % 2 !== 0) {
+    throw new RangeError('headDim must be a positive even integer in the safe integer range');
   }
 }
 
 function checkNonNegativeInteger(value, name) {
-  if (!Number.isInteger(value) || value < 0) {
-    throw new RangeError(name + ' must be a non-negative integer');
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError(name + ' must be a non-negative safe integer');
   }
 }
 
@@ -27,27 +48,30 @@ function checkBase(base) {
 }
 
 export function createRoPEPlan(headDim, base = DEFAULT_BASE, options = {}) {
+  checkOptions(options);
   checkHeadDim(headDim);
   checkBase(base);
-
-  const halfDim = headDim >>> 1;
-  const invFreq = new Float32Array(halfDim);
-  const invHeadDim = 1.0 / headDim;
-
-  for (let i = 0; i < halfDim; i++) {
-    invFreq[i] = 1.0 / Math.pow(base, (2 * i) * invHeadDim);
-  }
-
   const maxSeqLen = options.maxSeqLen ?? 0;
   checkNonNegativeInteger(maxSeqLen, 'maxSeqLen');
+
+  // Division does not truncate headDim to 32 bits, unlike >>> 1.
+  const halfDim = headDim / 2;
+  safeProduct(halfDim, Float64Array.BYTES_PER_ELEMENT, 'frequency byte length');
+  const tableLength = safeProduct(maxSeqLen, halfDim, 'cache length');
+  safeProduct(tableLength, 2 * Float64Array.BYTES_PER_ELEMENT, 'cache byte length');
+  const invFreq = new Float64Array(halfDim);
+  for (let i = 0; i < halfDim; i++) {
+    // Keep frequency precision until the final Float32 tensor write.
+    invFreq[i] = 1.0 / Math.pow(base, (2 * i) / headDim);
+    if (!Number.isFinite(invFreq[i])) throw new RangeError('base produces non-finite frequencies');
+  }
+  checkAngleRange(invFreq, 0, maxSeqLen);
 
   let cosTable = null;
   let sinTable = null;
   if (maxSeqLen > 0) {
-    const tableLength = maxSeqLen * halfDim;
     cosTable = new Float64Array(tableLength);
     sinTable = new Float64Array(tableLength);
-
     for (let pos = 0; pos < maxSeqLen; pos++) {
       const tableOffset = pos * halfDim;
       for (let i = 0; i < halfDim; i++) {
@@ -57,47 +81,44 @@ export function createRoPEPlan(headDim, base = DEFAULT_BASE, options = {}) {
       }
     }
   }
-
-  return Object.freeze({ headDim, halfDim, base, invFreq, maxSeqLen, cosTable, sinTable });
+  const plan = Object.freeze({ headDim, halfDim, base, invFreq, maxSeqLen, cosTable, sinTable });
+  createdPlans.add(plan);
+  return plan;
 }
 
 function checkPlan(plan) {
-  if (!plan || typeof plan !== 'object' ||
-      !Number.isInteger(plan.headDim) || !Number.isInteger(plan.halfDim) ||
-      !(plan.invFreq instanceof Float32Array) ||
-      plan.headDim !== plan.halfDim * 2 ||
-      plan.invFreq.length !== plan.halfDim) {
-    throw new TypeError('plan must be created by createRoPEPlan');
-  }
-
-  const hasCache = plan.maxSeqLen !== undefined ||
-    plan.cosTable !== undefined || plan.sinTable !== undefined;
-  if (hasCache && (
-    !Number.isInteger(plan.maxSeqLen) || plan.maxSeqLen < 0 ||
-    (plan.maxSeqLen === 0 && (plan.cosTable !== null || plan.sinTable !== null)) ||
-    (plan.maxSeqLen > 0 && (
-      !(plan.cosTable instanceof Float64Array) ||
-      !(plan.sinTable instanceof Float64Array) ||
-      plan.cosTable.length !== plan.maxSeqLen * plan.halfDim ||
-      plan.sinTable.length !== plan.maxSeqLen * plan.halfDim
-    ))
-  )) {
-    throw new TypeError('plan cache must be created by createRoPEPlan');
+  // Plans are module-local objects, not a serialization format. Length checks
+  // also catch storage detached through structuredClone/worker transfer.
+  if (!plan || !createdPlans.has(plan) ||
+      plan.invFreq.length !== plan.halfDim ||
+      (plan.maxSeqLen > 0 && (
+        plan.cosTable.length !== plan.maxSeqLen * plan.halfDim ||
+        plan.sinTable.length !== plan.maxSeqLen * plan.halfDim
+      ))) {
+    throw new TypeError('plan must be created by createRoPEPlan with intact storage');
   }
 }
 
 function getApplyConfig(tensor, plan, options) {
+  checkOptions(options);
   checkTensor(tensor, 'tensor');
   checkPlan(plan);
 
   const { headDim, halfDim, invFreq } = plan;
   const startPos = options.startPos ?? 0;
-  const seqLen = options.seqLen ?? Math.floor(tensor.length / headDim);
+  const seqLen = options.seqLen ?? tensor.length / headDim;
 
   checkNonNegativeInteger(startPos, 'startPos');
   checkNonNegativeInteger(seqLen, 'seqLen');
 
-  if (seqLen * headDim > tensor.length) {
+  if (tensor.length % headDim !== 0) {
+    throw new RangeError('tensor length must be a multiple of headDim');
+  }
+  if (seqLen > Number.MAX_SAFE_INTEGER - startPos) {
+    throw new RangeError('startPos + seqLen exceeds safe integer range');
+  }
+  checkAngleRange(invFreq, startPos, seqLen);
+  if (safeProduct(seqLen, headDim, 'tensor length') > tensor.length) {
     throw new RangeError('seqLen * headDim exceeds tensor length');
   }
 
@@ -188,6 +209,7 @@ export function applyRoPEWithPlan(tensor, plan, options = {}) {
 }
 
 export function applyRoPE(tensor, headDim, options = {}) {
+  checkOptions(options);
   return applyRoPEWithPlan(tensor, createRoPEPlan(headDim, options.base ?? DEFAULT_BASE), options);
 }
 
@@ -196,6 +218,7 @@ export function applyRoPESplitHalfWithPlan(tensor, plan, options = {}) {
 }
 
 export function applyRoPESplitHalf(tensor, headDim, options = {}) {
+  checkOptions(options);
   return applyRoPESplitHalfWithPlan(
     tensor,
     createRoPEPlan(headDim, options.base ?? DEFAULT_BASE),
@@ -209,6 +232,7 @@ export function applyRoPESplitHalf(tensor, headDim, options = {}) {
  * for every head belonging to a token. V is intentionally left untouched.
  */
 export function applyRoPEQK(q, k, plan, options = {}) {
+  checkOptions(options);
   checkTensor(q, 'q');
   checkTensor(k, 'k');
   checkPlan(plan);
@@ -219,7 +243,6 @@ export function applyRoPEQK(q, k, plan, options = {}) {
     throw new RangeError('qHeads and kvHeads must be positive safe integers');
   }
   checkNonNegativeInteger(startPos, 'startPos');
-  if (!Number.isSafeInteger(startPos)) throw new RangeError('startPos must be a safe integer');
   if (layout !== 'adjacent' && layout !== 'split-half') {
     throw new RangeError('layout must be adjacent or split-half');
   }
@@ -232,9 +255,11 @@ export function applyRoPEQK(q, k, plan, options = {}) {
   checkNonNegativeInteger(seqLen, 'seqLen');
   if (!Number.isSafeInteger(seqLen) ||
       q.length !== seqLen * qStride || k.length !== seqLen * kStride ||
-      !Number.isSafeInteger(startPos + seqLen)) {
-    throw new RangeError('Q/K lengths must match seqLen and their packed head counts');
+      !Number.isSafeInteger(seqLen * qStride) || !Number.isSafeInteger(seqLen * kStride) ||
+      seqLen > Number.MAX_SAFE_INTEGER - startPos) {
+    throw new RangeError('Q/K lengths must match packed shapes and the position range must be safe');
   }
+  checkAngleRange(plan.invFreq, startPos, seqLen);
   // Shared or partially overlapping views would rotate some elements twice.
   if (q.buffer === k.buffer &&
       q.byteOffset < k.byteOffset + k.byteLength &&

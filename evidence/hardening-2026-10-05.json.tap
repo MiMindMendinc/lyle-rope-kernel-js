@@ -1,0 +1,266 @@
+TAP version 13
+# Subtest: single-head educational example
+    # Subtest: checks its output against an analytic two-token answer
+    ok 1 - checks its output against an analytic two-token answer
+      ---
+      duration_ms: 1.182556
+      type: 'test'
+      ...
+    # Subtest: matches an independent attention reference and preserves all inputs
+    ok 2 - matches an independent attention reference and preserves all inputs
+      ---
+      duration_ms: 3.639094
+      type: 'test'
+      ...
+    # Subtest: rejects the formerly ignored nHeads parameter
+    ok 3 - rejects the formerly ignored nHeads parameter
+      ---
+      duration_ms: 0.472193
+      type: 'test'
+      ...
+    # Subtest: validates shapes, values and position before touching caller data
+    ok 4 - validates shapes, values and position before touching caller data
+      ---
+      duration_ms: 0.761019
+      type: 'test'
+      ...
+    # Subtest: handles an empty sequence explicitly
+    ok 5 - handles an empty sequence explicitly
+      ---
+      duration_ms: 0.17223
+      type: 'test'
+      ...
+    1..5
+ok 1 - single-head educational example
+  ---
+  duration_ms: 7.148292
+  type: 'suite'
+  ...
+# Subtest: numerical contract and input boundaries
+    # Subtest: matches independent long-position reference: adjacent
+    ok 1 - matches independent long-position reference: adjacent
+      ---
+      duration_ms: 176.92086
+      type: 'test'
+      ...
+    # Subtest: matches packed Q/K reference at high positions: adjacent
+    ok 2 - matches packed Q/K reference at high positions: adjacent
+      ---
+      duration_ms: 110.756359
+      type: 'test'
+      ...
+    # Subtest: matches independent long-position reference: split-half
+    ok 3 - matches independent long-position reference: split-half
+      ---
+      duration_ms: 160.636047
+      type: 'test'
+      ...
+    # Subtest: matches packed Q/K reference at high positions: split-half
+    ok 4 - matches packed Q/K reference at high positions: split-half
+      ---
+      duration_ms: 101.727042
+      type: 'test'
+      ...
+    # Subtest: keeps consecutive large positions distinct
+    ok 5 - keeps consecutive large positions distinct
+      ---
+      duration_ms: 0.879649
+      type: 'test'
+      ...
+    # Subtest: rejects unsafe positions and exclusive-end overflow without mutation
+    ok 6 - rejects unsafe positions and exclusive-end overflow without mutation
+      ---
+      duration_ms: 0.809673
+      type: 'test'
+      ...
+    # Subtest: uses the same exclusive-end rule for single and packed paths
+    ok 7 - uses the same exclusive-end rule for single and packed paths
+      ---
+      duration_ms: 0.320695
+      type: 'test'
+      ...
+    # Subtest: rejects incomplete rows instead of silently leaving an unrotated tail
+    ok 8 - rejects incomplete rows instead of silently leaving an unrotated tail
+      ---
+      duration_ms: 0.356428
+      type: 'test'
+      ...
+    # Subtest: rejects unsafe dimensions, sequence lengths and cache sizes
+    ok 9 - rejects unsafe dimensions, sequence lengths and cache sizes
+      ---
+      duration_ms: 0.345152
+      type: 'test'
+      ...
+    # Subtest: rejects zero-dimension fabricated plans
+    ok 10 - rejects zero-dimension fabricated plans
+      ---
+      duration_ms: 4.495939
+      type: 'test'
+      ...
+    # Subtest: rejects null, array and primitive options consistently
+    ok 11 - rejects null, array and primitive options consistently
+      ---
+      duration_ms: 0.35738
+      type: 'test'
+      ...
+    # Subtest: rejects detached plan storage before mutation
+    ok 12 - rejects detached plan storage before mutation
+      ---
+      duration_ms: 0.183747
+      type: 'test'
+      ...
+    # Subtest: retains partial-row-count operation and chunked continuation
+    ok 13 - retains partial-row-count operation and chunked continuation
+      ---
+      duration_ms: 15.672065
+      type: 'test'
+      ...
+    1..13
+ok 2 - numerical contract and input boundaries
+  ---
+  duration_ms: 574.705282
+  type: 'suite'
+  ...
+# Subtest: lyle-rope-kernel
+    # Subtest: exports the default base
+    ok 1 - exports the default base
+      ---
+      duration_ms: 0.788751
+      type: 'test'
+      ...
+    # Subtest: matches known values for headDim=4 pos=1
+    ok 2 - matches known values for headDim=4 pos=1
+      ---
+      duration_ms: 0.48323
+      type: 'test'
+      ...
+    # Subtest: matches a scalar reference
+    ok 3 - matches a scalar reference
+      ---
+      duration_ms: 0.3974
+      type: 'test'
+      ...
+    # Subtest: preserves L2 norm
+    ok 4 - preserves L2 norm
+      ---
+      duration_ms: 2.31842
+      type: 'test'
+      ...
+    # Subtest: keeps position zero as identity
+    ok 5 - keeps position zero as identity
+      ---
+      duration_ms: 0.64218
+      type: 'test'
+      ...
+    # Subtest: supports KV-cache continuation startPos
+    ok 6 - supports KV-cache continuation startPos
+      ---
+      duration_ms: 0.147723
+      type: 'test'
+      ...
+    # Subtest: rotates only requested partial seqLen
+    ok 7 - rotates only requested partial seqLen
+      ---
+      duration_ms: 0.161704
+      type: 'test'
+      ...
+    # Subtest: applyToHead matches applyRoPE
+    ok 8 - applyToHead matches applyRoPE
+      ---
+      duration_ms: 0.260714
+      type: 'test'
+      ...
+    # Subtest: matches split-half scalar reference
+    ok 9 - matches split-half scalar reference
+      ---
+      duration_ms: 0.45011
+      type: 'test'
+      ...
+    # Subtest: split-half layout differs from adjacent-pair layout away from zero
+    ok 10 - split-half layout differs from adjacent-pair layout away from zero
+      ---
+      duration_ms: 0.344049
+      type: 'test'
+      ...
+    # Subtest: planned API matches direct API
+    ok 11 - planned API matches direct API
+      ---
+      duration_ms: 0.417951
+      type: 'test'
+      ...
+    # Subtest: uses a cached plan without changing results and falls back beyond its range
+    ok 12 - uses a cached plan without changing results and falls back beyond its range
+      ---
+      duration_ms: 0.34473
+      type: 'test'
+      ...
+    # Subtest: matches direct RoPE across cache boundaries and supported dimensions
+    ok 13 - matches direct RoPE across cache boundaries and supported dimensions
+      ---
+      duration_ms: 2.413634
+      type: 'test'
+      ...
+    # Subtest: custom base changes output
+    ok 14 - custom base changes output
+      ---
+      duration_ms: 0.133762
+      type: 'test'
+      ...
+    # Subtest: handles long sequences
+    ok 15 - handles long sequences
+      ---
+      duration_ms: 11.601436
+      type: 'test'
+      ...
+    # Subtest: rejects invalid inputs
+    ok 16 - rejects invalid inputs
+      ---
+      duration_ms: 0.54962
+      type: 'test'
+      ...
+    1..16
+ok 3 - lyle-rope-kernel
+  ---
+  duration_ms: 22.634404
+  type: 'suite'
+  ...
+# Subtest: packed Q/K RoPE
+    # Subtest: matches independent per-head reference for adjacent, including cache boundary
+    ok 1 - matches independent per-head reference for adjacent, including cache boundary
+      ---
+      duration_ms: 0.883313
+      type: 'test'
+      ...
+    # Subtest: matches independent per-head reference for split-half, including cache boundary
+    ok 2 - matches independent per-head reference for split-half, including cache boundary
+      ---
+      duration_ms: 0.260713
+      type: 'test'
+      ...
+    # Subtest: keeps token zero as identity and accepts nonoverlapping views of one buffer
+    ok 3 - keeps token zero as identity and accepts nonoverlapping views of one buffer
+      ---
+      duration_ms: 0.198299
+      type: 'test'
+      ...
+    # Subtest: rejects bad shapes and overlapping views before modifying either input
+    ok 4 - rejects bad shapes and overlapping views before modifying either input
+      ---
+      duration_ms: 0.333423
+      type: 'test'
+      ...
+    1..4
+ok 4 - packed Q/K RoPE
+  ---
+  duration_ms: 1.804866
+  type: 'suite'
+  ...
+1..4
+# tests 38
+# suites 4
+# pass 38
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 635.400916

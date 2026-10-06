@@ -1,189 +1,155 @@
 # lyle-rope-kernel-js
 
-> Zero-dependency, in-place Rotary Position Embedding kernel for JavaScript inference experiments.
+Experimental, zero-dependency JavaScript RoPE library with in-place rotation,
+reusable plans, and packed Q/K support.
 
-![Tests](https://img.shields.io/badge/tests-21%2F21%20passing-brightgreen)
-![Runtime](https://img.shields.io/badge/runtime-Node%2020%2B-blue)
-![Dependencies](https://img.shields.io/badge/dependencies-0-success)
-![Module](https://img.shields.io/badge/module-ESM-purple)
-![License](https://img.shields.io/badge/license-MIT-yellow)
-![Status](https://img.shields.io/badge/status-verified-success)
+[![CI](https://github.com/MiMindMendinc/lyle-rope-kernel-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MiMindMendinc/lyle-rope-kernel-js/actions/workflows/ci.yml)
 
-## Plaques
+The badge tracks `main`; proposed changes have their own pull-request checks.
+This is an experimental CPU component, not a production-certified inference engine.
 
-| Plaque | Status |
-| --- | --- |
-| Correctness Gate | 21/21 local tests, including packed Q/K reference parity |
-| Reference Gate | deterministic scalar reference parity |
-| Stability Gate | L2 norm preservation checked |
-| KV Cache Gate | startPos continuation checked |
-| Hot Path Gate | reusable frequency and optional trig-cache plans |
-| Dependency Gate | zero runtime dependencies |
-| Claim Hygiene Gate | no unsupported fastest or fake benchmark claims |
-| WebGPU Gate | preview fallback only |
+## Scope and evidence
 
-## What is verified
+| Area | Scope | Evidence |
+| --- | --- | --- |
+| Rotation | In-place Float32 tensors; adjacent and split-half layouts | `test/rope.test.js` |
+| Numerical behavior | Float64 frequencies and arithmetic; Float32 output; explicit tolerance and sampled position range | `docs/NUMERICS.md`, `test/hardening.test.js` |
+| Packed Q/K | `[tokens, heads, headDim]`, unequal Q/K head counts, shared angles | Both correctness test files |
+| Example | Single-head, non-causal attention on small deterministic inputs | `test/example.test.js` |
+| Packaging | Actual tarball installed into a fresh offline consumer | `npm run test:package` |
+| Performance | Repeated local measurements against this package's per-head path | `npm run evidence` |
 
-- In-place Float32Array rotation.
-- Reusable precomputed RoPE plan API.
-- Optional precomputed trig cache for bounded context windows.
-- KV-cache continuation through startPos.
-- Deterministic known-value tests.
-- Independent scalar reference parity tests.
-- Norm preservation tests.
-- Partial seqLen tests.
-- Invalid input validation.
+Not implemented: GPU execution, a transformer, model loading, an attention engine,
+a KV cache, Llama 3/YaRN/NTK scaling, or end-to-end model-quality validation.
+`startPos` supplies an absolute position; it does not implement a KV cache.
+
+## Run from a checkout
+
+Use Node 22 or newer. The CI matrix targets Node 22 and 24 on Linux and Windows;
+check the actual workflow run for its results. No runtime or development packages
+are required beyond Node and npm.
+
+```sh
+git clone https://github.com/MiMindMendinc/lyle-rope-kernel-js.git
+cd lyle-rope-kernel-js
+npm ci --offline --ignore-scripts --no-audit --no-fund
+npm run verify
+npm run example
+npm run evidence
+```
+
+The clone requires network access. Subsequent commands are local. `verify` runs
+correctness tests and a fresh tarball install; it does not publish anything.
+Evidence is saved under ignored `reports/` as JSON plus a raw TAP test log.
+
+To install your own local build into another project:
+
+```sh
+npm pack --offline --ignore-scripts
+# In the consumer project, use the actual path printed by npm pack:
+npm install /absolute/path/to/lyle-rope-kernel-1.1.0-rc.1.tgz --offline --ignore-scripts --no-audit --no-fund
+```
+
+The version in this branch is a release candidate, not a claim of an npm publication.
 
 ## API
 
-Exports:
-
-- `applyRoPE(tensor, headDim, options)`
-- `applyRoPESplitHalf(tensor, headDim, options)`
-- `applyRoPESplitHalfWithPlan(tensor, plan, options)`
-- `createRoPEPlan(headDim, base, options)`
-- `applyRoPEWithPlan(tensor, plan, options)`
-- `applyRoPEQK(q, k, plan, options)`
-- `applyToHead(head, pos, headDim, base)`
-- `verifyNormPreservation(original, afterRoPE, tolerance)`
-
-Use `applyRoPE` for adjacent-pair layouts. Use `applyRoPESplitHalf` for stacks that pair the first and second halves of each head. Use `createRoPEPlan` plus `applyRoPEWithPlan` in tight loops where the same `headDim` and `base` are reused.
-
 ```js
-import { applyRoPE, createRoPEPlan, applyRoPEWithPlan } from 'lyle-rope-kernel';
+import { createRoPEPlan, applyRoPEQK } from 'lyle-rope-kernel';
 
-const headDim = 128;
-const seqLen = 512;
-const q = new Float32Array(seqLen * headDim);
-const k = new Float32Array(seqLen * headDim);
-
-applyRoPE(q, headDim, { startPos: 0 });
-applyRoPE(k, headDim, { startPos: 0 });
-
+const headDim = 4;
 const plan = createRoPEPlan(headDim);
-applyRoPEWithPlan(q, plan, { startPos: 1024, seqLen: 8 });
-applyRoPEWithPlan(k, plan, { startPos: 1024, seqLen: 8 });
+const q = Float32Array.from([1, 0, 0, 1, 0.5, -0.5, 1, 0]);
+const k = Float32Array.from([1, 0, 0.5, 0.5]);
+// One token, two query heads, one key head. Every head uses position 8192.
+applyRoPEQK(q, k, plan, {
+  qHeads: 2, kvHeads: 1, startPos: 8192, layout: 'adjacent',
+});
 ```
 
-For a bounded context window, add `maxSeqLen` when creating a plan. This precomputes the exact sine/cosine values once, so subsequent calls avoid trigonometry for positions inside that window. Calls outside it remain correct and use the normal math path.
+| Export | Purpose |
+| --- | --- |
+| `createRoPEPlan(headDim, base = 10000, { maxSeqLen = 0 })` | Reusable frequency plan; optional bounded trig cache |
+| `applyRoPE(tensor, headDim, options)` | Adjacent-pair rotation; creates a plan per call |
+| `applyRoPESplitHalf(tensor, headDim, options)` | Split-half rotation; creates a plan per call |
+| `applyRoPEWithPlan(tensor, plan, options)` | Adjacent-pair rotation with a reused plan |
+| `applyRoPESplitHalfWithPlan(tensor, plan, options)` | Split-half rotation with a reused plan |
+| `applyRoPEQK(q, k, plan, options)` | Packed Q/K rotation, returning the original `{ q, k }` |
+| `applyToHead(head, pos, headDim, base)` | Rotate exactly one head |
+| `verifyNormPreservation(before, after, tolerance = 1e-5)` | Absolute whole-tensor L2 diagnostic, not an angle-correctness oracle |
+| `DEFAULT_BASE` | `10000` |
 
-```js
-const cachedPlan = createRoPEPlan(128, 10000, { maxSeqLen: 8192 });
-applyRoPEWithPlan(q, cachedPlan, { startPos: 0, seqLen: 512 });
-```
+Single-tensor options: `startPos` and `seqLen`; direct calls also accept `base`.
+Single-tensor shapes are `[seqLen, headDim]`, **not** flattened multi-head tensors.
+Use `applyRoPEQK` for packed multi-head data. Its options require positive
+`qHeads`/`kvHeads`, and accept `startPos`, `seqLen`, and `layout` (`adjacent` or
+`split-half`). Packed tensor lengths must exactly match the requested shapes;
+Q and K must not overlap. V is not an argument and is not rotated.
 
-The cache stores two `Float64Array`s of `maxSeqLen * (headDim / 2)` entries: `16 * maxSeqLen * (headDim / 2)` bytes in total. Use it only when that one-time memory cost is appropriate for a reused context window. The cache is opt-in; the default plan keeps the compact frequency-only representation.
+All operations rotate their inputs in place. Do not apply RoPE twice to already
+rotated keys. Single-tensor `seqLen` may select a prefix of complete rows, leaving
+the remaining rows unchanged. Incomplete rows are rejected even with explicit
+`seqLen`. All positions and lengths, including the exclusive end
+`startPos + seqLen`, must fit the safe-integer range.
 
-### Packed Q/K for grouped-query attention
+## Precision, caching and migration
 
-`applyRoPEQK` takes contiguous `Float32Array` tensors shaped `[seqLen, qHeads, headDim]` and `[seqLen, kvHeads, headDim]`. It rotates every head for a token at the **same** absolute position and computes each sine/cosine pair once for that token and dimension. It supports different Q/K head counts, the optional bounded trig cache, and both `adjacent` and `split-half` layouts. Values (V) are not rotated. Inputs are changed in place; malformed shapes and overlapping Q/K views are rejected before either input changes.
+Read the [numerical contract](docs/NUMERICS.md) before integrating with a model.
+The tested absolute tolerance remains `1e-6` for bounded fixtures. This does not
+establish bit-exact parity with a model framework or preserved model accuracy.
 
-```js
-import { applyRoPEQK, createRoPEPlan } from 'lyle-rope-kernel';
+`createRoPEPlan(128, 10000, { maxSeqLen: 8192 })` precomputes positions 0..8191.
+Positions outside the cache fall back to the same frequency/math path. The cache
+is optional. Frequency storage uses `4 * headDim` bytes; both trig tables together
+use `8 * maxSeqLen * headDim` bytes. A 128-dimensional, 8192-position cache is
+8 MiB plus 512 frequency bytes (excluding object overhead). Budget memory before
+creating a plan from untrusted sizes; safe-integer checks are not memory quotas.
 
-const headDim = 128, qHeads = 32, kvHeads = 8, seqLen = 1;
-const q = new Float32Array(seqLen * qHeads * headDim);
-const k = new Float32Array(seqLen * kvHeads * headDim);
-const plan = createRoPEPlan(headDim); // reuse across decode steps
-applyRoPEQK(q, k, plan, { qHeads, kvHeads, startPos: 1024, layout: 'adjacent' });
-```
+Plans now use **Float64Array** frequencies. Recreate plans when upgrading;
+serialized, fabricated, transferred, or other-module plans are not accepted.
+The object is shallow-frozen: its typed-array contents must be treated as read-only.
+Do not mutate, resize, detach, alias tensor inputs onto, or concurrently modify
+plan storage. Tensor values are not scanned for finiteness in the hot path;
+non-finite or overflowing data is outside the numerical contract.
 
-`seqLen` defaults to the complete Q tensor; both tensor lengths must exactly match the packed shapes. Run `node examples/packed-qk.js` for a small executable example. This operation covers RoPE only; it is not an attention or KV-cache implementation.
+## Reproducible measurements
 
-## Support and scope
+`npm run evidence` records the source commit (or `null` outside Git), dirty state,
+SHA-256 hashes of source/test/harness files, Node/V8/OS/CPU identifiers, test
+counts, package-install results, numerical errors, plan-build time, cache bytes,
+and seven raw timing samples per mode. It does not collect hostnames, usernames,
+keys, model data, or environment-variable dumps, and does not upload results.
+Review generated reports before sharing them.
 
-- Standard RoPE only. Scaling variants such as Llama 3, YaRN, and NTK are intentionally outside the core API for now.
-- The core is portable ESM using only standard JavaScript and typed arrays, so it can run in modern Node and browser runtimes.
-- Node 20 and Node 22 are verified in CI. WebGPU remains a preview fallback; the JavaScript path is the production path.
+The harness checks all compared outputs outside the timed region. It compares
+per-head, packed, and packed-cached calls **within this package**, for one-token
+and 128-token workloads in both layouts. Every mode includes fresh input copies;
+plan creation is timed separately. Mode order rotates across samples. Results
+are machine/workload-specific, not claims against external libraries or GPUs.
 
-## Benchmarks
+Legacy `benchmark`, `benchmark:hot`, `benchmark:cached`, and `benchmark:qk`
+commands remain exploratory tools. Use the evidence harness for retained raw
+samples and environment information. The historical cached-path timing guard is
+now opt-in (`npm run test:performance`), not a correctness CI gate.
 
-Commands:
+## Examples and browser status
 
-```bash
-npm test
-npm run benchmark
-npm run benchmark:hot
-npm run benchmark:cached
-npm run benchmark:qk
-```
+`npm run example` checks a single-head attention result against an analytic
+answer. It uses a quadratic score matrix and is educational, non-causal, and
+unsuitable as a production attention implementation. The former `SimpleAttention`
+name remains an alias; a second `nHeads` argument now throws instead of being ignored.
+`node examples/packed-qk.js` demonstrates packed shapes only.
 
-Local validation baseline measured on Node `v22.14.0`. These numbers are not universal hardware claims; they are included as a reproducible marker for the current implementation. Run the commands above to reproduce them on your own machine.
+`demo/index.html` is a static project information page, not an executing browser
+benchmark. Browser runtime correctness is not yet covered by this CI matrix.
+The `lyle-rope-kernel/webgpu` compatibility entry point is a **CPU fallback**:
+its shader is empty and it does not request a GPU device or run GPU computation.
 
-### Copy plus compute
+## Release gate
 
-| headDim | seqLen | throughput |
-| ---: | ---: | ---: |
-| 64 | 512 | 42.9 M pairs/sec |
-| 64 | 2048 | 45.6 M pairs/sec |
-| 64 | 8192 | 41.5 M pairs/sec |
-| 128 | 512 | 61.5 M pairs/sec |
-| 128 | 2048 | 51.8 M pairs/sec |
-| 128 | 8192 | 47.1 M pairs/sec |
-| 256 | 512 | 63.2 M pairs/sec |
-| 256 | 2048 | 55.4 M pairs/sec |
-| 256 | 8192 | 48.0 M pairs/sec |
+Before merging or publishing, require passing PR correctness and package checks,
+review the numerical contract and migration notes, and retain a source-identified
+evidence report. See [CHANGELOG.md](CHANGELOG.md). No general security audit,
+model integration certification, or universal speed claim is implied.
 
-### Precomputed plan hot path
-
-| headDim | seqLen | throughput |
-| ---: | ---: | ---: |
-| 64 | 512 | 59.0 M pairs/sec |
-| 64 | 2048 | 54.7 M pairs/sec |
-| 64 | 8192 | 47.7 M pairs/sec |
-| 128 | 512 | 68.5 M pairs/sec |
-| 128 | 2048 | 57.5 M pairs/sec |
-| 128 | 8192 | 48.8 M pairs/sec |
-| 256 | 512 | 70.5 M pairs/sec |
-| 256 | 2048 | 58.2 M pairs/sec |
-| 256 | 8192 | 50.6 M pairs/sec |
-
-### Cached-plan hot path
-
-`npm run benchmark:cached` builds the trig cache before timing and measures only application. It is the relevant mode for workloads that repeatedly use a bounded context window.
-
-| headDim | seqLen | throughput |
-| ---: | ---: | ---: |
-| 64 | 512 | 220.5 M pairs/sec |
-| 64 | 2048 | 462.2 M pairs/sec |
-| 64 | 8192 | 396.7 M pairs/sec |
-| 128 | 512 | 476.1 M pairs/sec |
-| 128 | 2048 | 444.8 M pairs/sec |
-| 128 | 8192 | 399.6 M pairs/sec |
-| 256 | 512 | 470.8 M pairs/sec |
-| 256 | 2048 | 475.3 M pairs/sec |
-| 256 | 8192 | 475.0 M pairs/sec |
-
-`npm test` also includes a steady-state regression guard. It checks that the cached path remains at least 1.5× faster than the frequency-only plan for a fixed representative workload. It is a relative check, not a cross-machine throughput claim.
-
-`npm run benchmark:qk` measures a 32-query-head/8-key-head workload against per-head calls to this package. It prints both timings and the Node version. The comparison includes tensor copies in both modes and excludes plan construction; it is not a comparison against another library or a GPU kernel.
-
-## Tests
-
-The suite covers known values, scalar reference parity, split-half parity, cached-plan parity across cache boundaries and supported dimensions, norm preservation, position-zero identity, `startPos`, partial `seqLen`, `applyToHead` parity, planned API parity, custom base behavior, long sequences, packed Q/K parity with independent per-head scalar references, invalid inputs, and a relative hot-path regression guard.
-
-Current local marker: `21 tests / 21 passing` on Node 24. GitHub CI separately runs Node 20 and 22 when the change is submitted.
-
-## Layout note
-
-`applyRoPE` rotates adjacent pairs inside each row-major head: `x0/x1`, `x2/x3`, and so on. `applyRoPESplitHalf` rotates split halves: `x0/x(half)`, `x1/x(half+1)`, and so on.
-
-## WebGPU status
-
-The WebGPU entrypoint is preview-fallback only. Treat the JavaScript path as the production path until full GPU bindings are implemented.
-
-## Release checklist
-
-- [x] Package exports defined
-- [x] Zero runtime dependencies
-- [x] Strict input validation
-- [x] Planned hot path API
-- [x] Reproducible benchmark commands
-- [x] Benchmarks recorded with environment note
-- [x] Demo copy cleaned
-- [x] README claims aligned with tests
-- [x] CI uses lockfile-free install path
-
-## License
-
-MIT
+MIT. Copyright information is retained in [LICENSE](LICENSE).
