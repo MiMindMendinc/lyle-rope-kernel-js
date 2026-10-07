@@ -8,6 +8,10 @@ reusable plans, and packed Q/K support.
 The badge tracks `main`; proposed changes have their own pull-request checks.
 This is an experimental CPU component, not a production-certified inference engine.
 
+**Status vocabulary:** local `npm run verify` = TESTED LOCALLY; green PR checks = CI VERIFIED for that revision; green `main` badge = verified main. Do not conflate these.
+
+Experimental prerelease / install / migration notes: [docs/PRERELEASE_NOTES.md](docs/PRERELEASE_NOTES.md). Report problems via [GitHub Issues](https://github.com/MiMindMendinc/lyle-rope-kernel-js/issues) (include Node version, OS, commit SHA, and failing command).
+
 ## Scope and evidence
 
 | Area | Scope | Evidence |
