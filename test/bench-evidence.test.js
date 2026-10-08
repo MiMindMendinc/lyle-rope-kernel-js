@@ -36,9 +36,15 @@ describe('README benchmark tables match the committed evidence', () => {
     const text = readme.replace(/\s+/g, ' ');
     assert.ok(text.includes(`**${summary.runCount} back-to-back runs**`));
     assert.ok(text.includes(`\`${summary.sourceCommit.slice(0, 12)}\` (clean tree)`));
-    assert.ok(text.includes(`a median of ${v.medianSpreadPercent}% of the cell's median (up to ${v.maxSpreadPercent}%, ${v.maxSpreadCase})`));
-    assert.ok(text.includes(`by a median of ${v.medianTypicalDeviationPercent}%`));
-    assert.ok(text.includes(`${v.slowCellsPerRun.join(', ')} in runs 1–${summary.runCount}`));
+    // Spreads are quoted as whole percentages; the typical deviation keeps one decimal.
+    const pct = value => `${Math.round(value)}%`;
+    const slow = v.slowCellsPerRun;
+    const slowList = slow.length > 1 ? `${slow.slice(0, -1).join(', ')} and ${slow.at(-1)}` : `${slow[0]}`;
+    assert.ok(text.includes(`within ${v.medianTypicalDeviationPercent}% of the cell median`), 'typical deviation');
+    assert.ok(text.includes(`min–max span was ${pct(v.medianSpreadPercent)} of its median, ` +
+      `up to ${pct(v.maxSpreadPercent)} for ${v.maxSpreadCase}`), 'spread');
+    assert.ok(text.includes(`Runs 1–${summary.runCount} had ${slowList} of the ${v.readmeCellCount} cells ` +
+      'more than 20% above their median'), 'slow cells per run');
     // No speed-up multiplier claims in the README prose.
     assert.doesNotMatch(readme, /\b\d+(\.\d+)?\s*[x×]\s*(faster|speed)/i);
   });

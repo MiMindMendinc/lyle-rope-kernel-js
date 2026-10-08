@@ -7,16 +7,16 @@ reusable plans, and packed Q/K support.
 rotate synthetic data with the real ES module in your browser, see the angles, check
 the result against the scalar reference, and time it on your device. No analytics,
 no network requests beyond the page's own files.
-· [Benchmarks](#benchmarks-one-machine-indicative-only) · [Install](#install)
+
+[Live demo](https://mimindmendinc.github.io/lyle-rope-kernel-js/playground.html) · [Benchmarks](#benchmarks-one-machine-indicative-only) · [Install](#install)
 
 [![CI](https://github.com/MiMindMendinc/lyle-rope-kernel-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MiMindMendinc/lyle-rope-kernel-js/actions/workflows/ci.yml)
 
-The badge tracks `main`; proposed changes have their own pull-request checks.
 This is an experimental CPU component, not a production-certified inference engine.
+The badge shows CI status for `main`; run `npm run verify` to check a local checkout.
 
-**Status vocabulary:** local `npm run verify` = TESTED LOCALLY; green PR checks = CI VERIFIED for that revision; green `main` badge = verified main. Do not conflate these.
-
-Experimental prerelease / install / migration notes: [docs/PRERELEASE_NOTES.md](https://github.com/MiMindMendinc/lyle-rope-kernel-js/blob/main/docs/PRERELEASE_NOTES.md). Report problems via [GitHub Issues](https://github.com/MiMindMendinc/lyle-rope-kernel-js/issues) (include Node version, OS, commit SHA, and failing command).
+Prerelease, install and migration notes: [docs/PRERELEASE_NOTES.md](https://github.com/MiMindMendinc/lyle-rope-kernel-js/blob/main/docs/PRERELEASE_NOTES.md).
+Report problems via [GitHub Issues](https://github.com/MiMindMendinc/lyle-rope-kernel-js/issues) (include Node version, OS, commit SHA, and the failing command).
 
 ## Scope and evidence
 
@@ -24,10 +24,10 @@ Experimental prerelease / install / migration notes: [docs/PRERELEASE_NOTES.md](
 | --- | --- | --- |
 | Rotation | In-place Float32 tensors; adjacent and split-half layouts | `test/rope.test.js` |
 | Numerical behavior | Float64 frequencies and arithmetic; Float32 output; explicit tolerance and sampled position range; scaled inputs to 1e30 (abs + rel tolerance); wrong types, empty tensors and NaN pinned | `docs/NUMERICS.md`, `test/hardening.test.js`, `test/scaled-input.test.js`, `test/input-contract.test.js` |
-| Packed Q/K | `[tokens, heads, headDim]`, unequal Q/K head counts, shared angles | Both correctness test files |
+| Packed Q/K | `[tokens, heads, headDim]`, unequal Q/K head counts, shared angles | `test/rope.test.js`, `test/hardening.test.js`, `test/scaled-input.test.js` |
 | Example | Single-head, non-causal attention on small deterministic inputs | `test/example.test.js` |
 | Packaging | Actual tarball installed into a fresh offline consumer | `npm run test:package` |
-| Performance | Repeated local measurements against this package's per-head path | `npm run evidence` |
+| Performance | Per-head vs packed timings within this package, with source hashes and raw samples | `npm run evidence` |
 | Throughput | Median ns per rotated pair over a fixed shape matrix; each case reference-checked first | `npm run bench`, `evidence/bench-*.json` |
 | Browser demo | Same kernel file served by Pages; in-page reference check | `demo/playground.html`, `test/demo.test.js` |
 
@@ -37,24 +37,25 @@ a KV cache, Llama 3/YaRN/NTK scaling, or end-to-end model-quality validation.
 
 ## Install
 
-> **Check npm for published versions first.** The
-> [`lyle-rope-kernel` page on npmjs](https://www.npmjs.com/package/lyle-rope-kernel) lists
-> every version that has actually been published. If `1.1.0-rc.1` is not listed there,
-> use a checkout or a local tarball ([Run from a checkout](#run-from-a-checkout)).
-> Prereleases are meant to be published under the `next` dist-tag (`publishConfig` in
-> `package.json`), so install an explicit version. When it is listed, use:
+> **Not yet published to npm.** Install from a [checkout or a local tarball](#run-from-a-checkout).
+> Once a prerelease is published it will use the `next` dist-tag, so you would install it by
+> explicit version:
 
 ```sh
+# Future install command; this does not work until the package is published.
 npm install lyle-rope-kernel@1.1.0-rc.1
 ```
+
+Quick start (after installing a local tarball; in a checkout, import from `./src/rope-kernel.js`):
 
 ```js
 import { createRoPEPlan, applyRoPEWithPlan } from 'lyle-rope-kernel';
 
 const headDim = 64, seqLen = 128;
 const plan = createRoPEPlan(headDim, 10000, { maxSeqLen: seqLen }); // optional trig cache
-const x = new Float32Array(seqLen * headDim); // one head, shape [seqLen, headDim]
-applyRoPEWithPlan(x, plan); // rotates in place for positions 0..127
+// One head, shape [seqLen, headDim], filled with non-zero demo data.
+const x = Float32Array.from({ length: seqLen * headDim }, (_, i) => Math.sin(i));
+applyRoPEWithPlan(x, plan); // rotates x in place for positions 0..127
 ```
 
 It is a single ES module with no dependencies and no install scripts. Node 22+ is
@@ -87,9 +88,6 @@ npm pack --offline --ignore-scripts
 # In the consumer project, use the actual path printed by npm pack:
 npm install /absolute/path/to/lyle-rope-kernel-1.1.0-rc.1.tgz --offline --ignore-scripts --no-audit --no-fund
 ```
-
-The version in `package.json` is a release candidate; it is not by itself a claim that
-that version was published.
 
 ## API
 
@@ -135,7 +133,8 @@ the remaining rows unchanged. Incomplete rows are rejected even with explicit
 
 Measured with `npm run bench` on **one machine**: Intel(R) Xeon(R) Processor (8 logical
 CPUs, shared Linux sandbox VM, not dedicated benchmark hardware), Node v22.23.3 (V8 12.4.254.21-node.57),
-linux 6.12.94+ x64, 2026-10-08, source commit `40906c0dd032` (clean tree).
+linux 6.12.94+ x64, 2026-10-08, source commit `40906c0dd032` (clean tree), a PR #8 branch commit that was squash-merged
+to `main` as `4c92b89` with identical `src/` and `bench/` measurement code.
 **5 back-to-back runs** were combined with `npm run bench:aggregate`; every run and raw sample is in
 [`evidence/bench-2026-10-08.json`](https://github.com/MiMindMendinc/lyle-rope-kernel-js/blob/main/evidence/bench-2026-10-08.json).
 **These numbers are from one machine and are indicative only.** Your hardware, Node version
@@ -183,11 +182,11 @@ Not shown: the JSON also times `support/reference.mjs` (group `oracle`), the cor
 used by the tests. It allocates a new output array and recomputes `Math.pow` per element, so it
 is not a performance baseline and is deliberately left out of these tables.
 
-**Run-to-run noise:** across the 5 runs, a cell's min–max range was a median of 48% of the
-cell's median (up to 113.1%, [512, 32/8, 128] applyRoPEQK, cached trig table), while a typical run
-differed from the cell median by a median of 2.1%. Most of the spread comes from occasional slow
-runs on this shared VM: the number of the 48 cells more than 20% above their median was
-4, 0, 5, 9, 20 in runs 1–5. Treat differences inside the ranges as noise. Reproduce with:
+**Run-to-run noise:** this shared VM is noisy. A typical run was within 2.1% of the cell median,
+but occasional slow runs widened the ranges: the median cell's min–max span was 48% of its median,
+up to 113% for [512, 32/8, 128] applyRoPEQK, cached trig table. Runs 1–5 had 4, 0, 5, 9 and 20
+of the 48 cells more than 20% above their median. Treat differences inside the ranges as noise.
+Reproduce with:
 
 ```sh
 npm run bench                       # one run: prints the tables; JSON goes to ignored reports/
@@ -209,14 +208,14 @@ use `8 * maxSeqLen * headDim` bytes. A 128-dimensional, 8192-position cache is
 8 MiB plus 512 frequency bytes (excluding object overhead). Budget memory before
 creating a plan from untrusted sizes; safe-integer checks are not memory quotas.
 
-Plans now use **Float64Array** frequencies. Recreate plans when upgrading;
-serialized, fabricated, transferred, or other-module plans are not accepted.
+Plans use **Float64Array** frequencies and are not serializable: serialized, fabricated,
+transferred, or other-module plans are rejected (see [CHANGELOG.md](CHANGELOG.md) when upgrading).
 The object is shallow-frozen: its typed-array contents must be treated as read-only.
 Do not mutate, resize, detach, alias tensor inputs onto, or concurrently modify
 plan storage. Tensor values are not scanned for finiteness in the hot path;
 non-finite or overflowing data is outside the numerical contract.
 
-## Reproducible measurements
+## Evidence harness (`npm run evidence`)
 
 `npm run evidence` records the source commit (or `null` outside Git), dirty state,
 SHA-256 hashes of source/test/harness files, Node/V8/OS/CPU identifiers, test
@@ -231,22 +230,18 @@ and 128-token workloads in both layouts. Every mode includes fresh input copies;
 plan creation is timed separately. Mode order rotates across samples. Results
 are machine/workload-specific, not claims against external libraries or GPUs.
 
-`npm run bench` is the throughput matrix shown above; it writes JSON to ignored
-`reports/` unless given `--out`. Legacy `benchmark`, `benchmark:hot`, `benchmark:cached`,
-and `benchmark:qk` commands remain exploratory tools. Use the evidence harness for retained raw
-samples and environment information. The historical cached-path timing guard is
-now opt-in (`npm run test:performance`), not a correctness CI gate.
+`npm run test:performance` runs an opt-in cached-vs-uncached timing check; it is not part of CI.
 
 ## Examples and browser status
 
 `npm run example` checks a single-head attention result against an analytic
 answer. It uses a quadratic score matrix and is educational, non-causal, and
-unsuitable as a production attention implementation. The former `SimpleAttention`
-name remains an alias; a second `nHeads` argument now throws instead of being ignored.
+unsuitable as a production attention implementation. `SimpleAttention` is an alias
+of the example class and accepts a single constructor argument.
 `node examples/packed-qk.js` demonstrates packed shapes only.
 
 The Pages site is built by `npm run site:build` (copies `demo/` plus the unmodified
-`src/rope-kernel.js` and `support/reference.mjs` into ignored `_site/`). Preview it locally
+`src/rope-kernel.js`, and `support/reference.mjs` served as `support/reference.js`, into ignored `_site/`). Preview it locally
 with `npm run site:serve` (loopback only, http://127.0.0.1:8080/). `demo/playground.html`
 runs the kernel in the browser on seeded synthetic data and reports its own reference
 check and browser timing; its logic is unit-tested in Node by `test/demo.test.js`.
@@ -254,11 +249,12 @@ Browser runtime correctness is still not covered by this CI matrix.
 The `lyle-rope-kernel/webgpu` compatibility entry point is a **CPU fallback**:
 its shader is empty and it does not request a GPU device or run GPU computation.
 
-## Release gate
+## Contributing / releases
 
-Before merging or publishing, require passing PR correctness and package checks,
-review the numerical contract and migration notes, and retain a source-identified
-evidence report. See [CHANGELOG.md](CHANGELOG.md). No general security audit,
-model integration certification, or universal speed claim is implied.
+Pull requests need passing correctness and package checks (`npm run verify`). Changes are
+listed in [CHANGELOG.md](CHANGELOG.md). This package has not had a security audit or
+model-integration testing.
 
-MIT. Copyright information is retained in [LICENSE](LICENSE).
+## License
+
+Licensed under the [MIT License](LICENSE).

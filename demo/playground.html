@@ -6,6 +6,12 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>lyle-rope-kernel-js: live browser demo</title>
+<meta name="description" content="Run an experimental zero-dependency JavaScript RoPE kernel in your browser, check it against a scalar reference, and time it locally. No network requests, no analytics.">
+<meta property="og:title" content="lyle-rope-kernel-js: live browser demo">
+<meta property="og:description" content="Rotate synthetic data with the real ES module, verify against a scalar reference, and time it on your device.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mimindmendinc.github.io/lyle-rope-kernel-js/playground.html">
+<meta name="twitter:card" content="summary">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="playground.css">
 </head>
@@ -15,7 +21,8 @@
   <h1>Live browser demo</h1>
   <p class="muted">This page runs the repository's unmodified ES module <code>src/rope-kernel.js</code>
   in your browser on synthetic random data, then checks the result against the repository's
-  independent scalar reference (<code>support/reference.mjs</code>). Nothing is uploaded: the page
+  independent scalar reference (<code>support/reference.js</code>, an unmodified copy of the repository's
+  <code>support/reference.mjs</code>). Nothing is uploaded: the page
   makes no network requests beyond loading its own files, and has no analytics or trackers.</p>
 
   <form id="controls" class="card" novalidate>
@@ -33,44 +40,46 @@
           <option value="split-half">Split-half (x[i], x[i+d/2])</option>
         </select>
       </label>
-      <label>headDim
+      <label>Head dim (headDim)
         <select id="headDim">
           <option>8</option><option>16</option><option>32</option><option selected>64</option><option>128</option><option>256</option>
         </select>
       </label>
-      <label>Sequence length
+      <label>Sequence length (seqLen)
         <input id="seqLen" type="number" min="1" max="4096" step="1" value="512" inputmode="numeric">
       </label>
-      <label>startPos
+      <label>Start position (startPos)
         <input id="startPos" type="number" min="0" max="131071" step="1" value="0" inputmode="numeric">
       </label>
-      <label>base
+      <label>RoPE base (base)
         <input id="base" type="number" min="1.0001" max="10000000" step="any" value="10000" inputmode="decimal">
       </label>
-      <label class="packed-only">Q heads
+      <label class="packed-only">Q heads (qHeads)
         <input id="qHeads" type="number" min="1" max="64" step="1" value="32" inputmode="numeric">
       </label>
-      <label class="packed-only">KV heads
+      <label class="packed-only">KV heads (kvHeads)
         <input id="kvHeads" type="number" min="1" max="64" step="1" value="8" inputmode="numeric">
       </label>
       <label>Seed (synthetic data)
         <input id="seed" type="number" min="0" max="4294967295" step="1" value="42" inputmode="numeric">
       </label>
-      <label class="check"><input id="cached" type="checkbox" checked><span>Cached trig table (plan <code>maxSeqLen</code> = startPos + seq)</span></label>
+      <label class="check"><input id="cached" type="checkbox" checked><span>Cached trig table (plan <code>maxSeqLen</code> = startPos + seqLen)</span></label>
     </div>
     <div class="actions">
-      <button id="run" type="submit">Run + check</button>
+      <button id="run" type="submit">Re-run check</button>
       <button id="time" type="button">Time it in your browser</button>
       <button id="reseed" type="button" class="secondary">New random seed</button>
     </div>
-    <p class="muted hint">Changes apply automatically. Positions startPos through startPos + seqLen − 1
+    <p class="muted hint">Changes apply automatically; <strong>Re-run check</strong> repeats the current run.
+    Positions startPos through startPos + seqLen − 1
     must stay at or below 131071, the highest position the repository's numerical tests cover.</p>
     <p id="config-error" class="error" role="alert" hidden></p>
   </form>
 
   <section class="card" aria-labelledby="check-title">
     <h2 id="check-title">Correctness check</h2>
-    <div id="check" aria-live="polite"><p class="muted">Loading the kernel…</p></div>
+    <div id="check" aria-live="polite"><p class="muted">Loading the kernel…</p>
+    <noscript><p class="error">This demo needs JavaScript (ES modules) to run the kernel in your browser.</p></noscript></div>
   </section>
 
   <section class="card" aria-labelledby="timing-title">
@@ -107,5 +116,6 @@
   </section>
 </main>
 <script type="module" src="playground.js"></script>
+<script src="playground-fallback.js" defer></script>
 </body>
 </html>

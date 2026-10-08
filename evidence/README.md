@@ -1,11 +1,16 @@
-# Hardening evidence (2026-10-05)
+# Evidence
+
+Committed measurement and test evidence for this repository. Nothing here is uploaded or
+published by the harnesses; generated reports stay in ignored `reports/`.
+
+## Hardening evidence (2026-10-05)
 
 Tested source commit: `b9718a62b22e55e7e3b4e13508790d18279f6ff8`.
 Tested Git tree: `a62b0d77b2d0d918f208f4d0e3f59978c8fa138a`.
 These evidence-only files are committed after the tested implementation so that
 its source identity does not depend on a self-referential report hash.
 
-## Retained run
+### Retained run
 
 - [Machine-readable report](hardening-2026-10-05.json): environment, source hashes,
   38 passing correctness tests with no skips, fresh offline tarball install,
@@ -13,11 +18,8 @@ its source identity does not depend on a self-referential report hash.
 - [Unedited test output](hardening-2026-10-05.json.tap): TAP from that run; its
   SHA-256 is recorded in the report.
 
-The run used Node 22.16.0 on a shared Linux sandbox, not dedicated benchmark
-hardware. Repository content was transferred through the GitHub connector because
-container DNS could not resolve GitHub. The complete uploaded source tree and
-GitHub commit object were hash-verified against the local tested checkout before
-this run. The report records that source commit and a clean working tree.
+The run used Node 22.16.0 on a shared Linux VM, not dedicated benchmark hardware.
+The report records the source commit and a clean working tree.
 
 The numerical matrix passed the existing 1e-6 absolute tolerance, without changing
 it, on bounded deterministic inputs and sampled positions through 131071.
@@ -28,7 +30,7 @@ Timing compares this package's per-head and packed implementations only. It is
 not a cross-library/GPU benchmark or an end-to-end model speedup. Cache construction
 is measured separately; repeated application includes fresh input copies.
 
-## Before/after regression proof
+### Before/after regression proof
 
 The original commit `157036c26e799539f69d6629464e16686fe9b228` passed its existing
 21 tests (including its historical timing guard). Applying the new 13-test core
@@ -47,19 +49,18 @@ mkdir -p ../rope-before-hardening/support
 git show b9718a62b22e55e7e3b4e13508790d18279f6ff8:support/reference.mjs > ../rope-before-hardening/support/reference.mjs
 git show b9718a62b22e55e7e3b4e13508790d18279f6ff8:test/hardening.test.js > ../rope-before-hardening/test/hardening.test.js
 (cd ../rope-before-hardening && node --test test/hardening.test.js)
-# Nonzero exit is expected. Run npm run verify on the proposed branch for the fixed side.
+# Nonzero exit is expected. Run npm run verify on main for the fixed side.
 ```
 
-For a fresh report on the proposed branch, run `npm run evidence`. Generated
-reports stay in ignored `reports/`; nothing is uploaded or published by the harness.
-The committed run is local evidence, not a substitute for inspecting the PR's
-Linux/Windows Node 22/24 CI outcomes. No release tag or npm publication is implied.
+For a fresh report, run `npm run evidence`. The committed run is local evidence;
+the Linux/Windows Node 22/24 CI runs are the cross-platform check.
 
-# Throughput runs (2026-10-08)
+## Throughput runs (2026-10-08)
 
 [`bench-2026-10-08.json`](bench-2026-10-08.json) combines **5 back-to-back `npm run bench`
 runs** on source commit `40906c0dd0321048d92cfefb51b5e77e0d435697` (every run records a clean
-tree), Node 22.23.3 on a shared Linux sandbox VM (Intel Xeon, 8 logical CPUs). It was built
+tree; that PR #8 branch commit was squash-merged to `main` as `4c92b89`, with identical `src/`,
+`bench/throughput.mjs` and `bench/baseline.mjs`), Node 22.23.3 on a shared Linux sandbox VM (Intel Xeon, 8 logical CPUs). It was built
 with `npm run bench:aggregate`, which refuses fewer than 3 runs, dirty trees, mixed commits,
 mixed Node/CPU, or any case that failed its reference check. The file holds:
 

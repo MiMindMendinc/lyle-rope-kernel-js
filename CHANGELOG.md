@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0-rc.1 (proposed; not published)
+## 1.1.0-rc.1 (unreleased)
 
 - Preserve inverse-frequency precision in Float64 while retaining Float32 tensors.
 - Add an independent long-position reference matrix without relaxing the 1e-6
@@ -20,7 +20,7 @@
 - Target Node 22/24 on Linux/Windows in CI; disable install lifecycle scripts.
 - Add `npm run bench`: a Node-built-ins throughput matrix (headDim 64/128, seq
   128/512/2048, packed 8/8 and 32/8 heads) that checks each case against the scalar
-  reference before timing; retain one run under `evidence/` with machine details.
+  reference before timing; README figures come from five retained runs (see below).
 - Add a live browser demo (`demo/playground.html`) that imports the unmodified ES
   module, checks it against the reference in the page and times it in the browser;
   Pages now builds `_site/` with `npm run site:build`. No analytics or network requests.
@@ -39,10 +39,21 @@
   `./package.json` export, more specific keywords and a `prepublishOnly` verify gate.
   The package is still not published.
 
+- Remove the legacy root `benchmark.js` / `benchmark-qk.js` scripts and their
+  `benchmark*` npm scripts; use `npm run bench` and `npm run evidence` instead.
+- Demo: meta description and Open Graph tags, a visible message if the kernel module
+  fails to load, field-level placement of the cache-size error, and consistent labels.
+- CI runs on pushes to `main` and on pull requests (no duplicate runs for PR branches).
+
 ### Compatibility notes
 
 This is an experimental release candidate. Recreate plans after upgrading:
 `invFreq` is now Float64 and plans are module-local, not serialized structures.
 Incomplete rows and unsafe positions that older versions accepted now throw.
+The former `SimpleAttention` example name remains an alias; a second `nHeads`
+constructor argument now throws instead of being ignored. The cached-path timing
+guard is now opt-in (`npm run test:performance`) rather than a correctness CI gate.
 The declared Node minimum is 22. Public CPU function names and return conventions
 are retained. No GPU implementation, release tag or registry publication is added.
+`WEBGPU_ROPE_STATUS` stays `'preview-fallback'` for compatibility; a rename to
+`'cpu-fallback'` is planned for the next breaking release.
