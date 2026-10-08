@@ -135,51 +135,64 @@ the remaining rows unchanged. Incomplete rows are rejected even with explicit
 
 Measured with `npm run bench` on **one machine**: Intel(R) Xeon(R) Processor (8 logical
 CPUs, shared Linux sandbox VM, not dedicated benchmark hardware), Node v22.23.3 (V8 12.4.254.21-node.57),
-linux 6.12.94+ x64, 2026-10-07, source commit `89583f8be19d`
-(clean tree). Raw samples and settings: [`evidence/bench-2026-10-07.json`](evidence/bench-2026-10-07.json).
-**These numbers are from one machine and one run, and are indicative only.** Your hardware,
-Node version and workload will give different numbers.
+linux 6.12.94+ x64, 2026-10-08, source commit `40906c0dd032` (clean tree).
+**5 back-to-back runs** were combined with `npm run bench:aggregate`; every run and raw sample is in
+[`evidence/bench-2026-10-08.json`](https://github.com/MiMindMendinc/lyle-rope-kernel-js/blob/main/evidence/bench-2026-10-08.json).
+**These numbers are from one machine and are indicative only.** Your hardware, Node version
+and workload will give different numbers. No other library was benchmarked.
 
-Values are the **median nanoseconds per rotated (x0, x1) pair** (lower means less time
-per pair) over 11 samples of about 40 ms each, after a 150 ms warmup. The timed region is
-in-place rotation of one reused `Float32Array` starting at position 0; plan construction
-and input copies are not timed. Packed Q/K counts both Q and K pairs. Before timing, every
-kernel case is checked against the scalar reference within the tested `1e-6` tolerance.
+Each cell is the **median, across the 5 runs, of each run's median nanoseconds per rotated
+(x0, x1) pair**, with the **min–max of those per-run medians** in parentheses; lower means less
+time per pair. Each run takes 11 samples of about 40 ms per case after a 150 ms warmup. The timed
+region is in-place rotation of one reused `Float32Array` starting at position 0; plan construction
+and input copies are not timed. Packed Q/K counts both Q and K pairs. Before timing, every case,
+including the baseline, is checked against the scalar reference within the tested `1e-6` tolerance.
 
-| Shape [seq, headDim] | applyRoPEWithPlan, no cache | applyRoPEWithPlan, cached | applyRoPESplitHalfWithPlan, cached | Naive JS reference in this repo |
+| Shape [seq, headDim] | applyRoPEWithPlan, no cache | applyRoPEWithPlan, cached | applyRoPESplitHalfWithPlan, cached | Plain in-place scalar loop (baseline, not this package) |
 | --- | ---: | ---: | ---: | ---: |
-| [128, 64] | 14.2 | 2.91 | 3.29 | 95.4 |
-| [512, 64] | 18.3 | 2.72 | 3.05 | 100 |
-| [2048, 64] | 22.1 | 2.71 | 2.98 | 107 |
-| [128, 128] | 15.2 | 2.63 | 3.06 | 94.2 |
-| [512, 128] | 17.9 | 2.74 | 3.03 | 106 |
-| [2048, 128] | 22.9 | 2.62 | 3.08 | 111 |
+| [128, 64] | 16.3 (14.2–24.4) | 2.96 (2.81–4.44) | 3.07 (2.99–4.35) | 14.4 (14.2–15.7) |
+| [512, 64] | 18.4 (18.3–18.8) | 2.99 (2.74–3.22) | 3.04 (3.01–3.68) | 18.7 (18.5–18.8) |
+| [2048, 64] | 22.8 (22.3–22.8) | 2.73 (2.69–2.86) | 3.12 (3.01–4.07) | 22.6 (21.9–25.1) |
+| [128, 128] | 14.8 (14.0–20.2) | 2.85 (2.67–4.00) | 3.01 (3.00–4.37) | 15.3 (15.0–22.5) |
+| [512, 128] | 20.3 (18.2–24.6) | 2.73 (2.68–2.78) | 3.03 (2.97–3.06) | 17.8 (17.5–27.3) |
+| [2048, 128] | 22.7 (21.3–23.6) | 2.71 (2.67–3.36) | 3.03 (3.00–3.57) | 22.0 (21.3–29.9) |
 
 | Packed Q/K shape [seq, Q heads / KV heads, headDim] | applyRoPEQK, no cache | applyRoPEQK, cached |
 | --- | ---: | ---: |
-| [128, 8/8, 64] | 4.14 | 3.26 |
-| [128, 32/8, 64] | 3.46 | 2.96 |
-| [512, 8/8, 64] | 4.32 | 3.13 |
-| [512, 32/8, 64] | 3.49 | 2.97 |
-| [2048, 8/8, 64] | 4.90 | 3.22 |
-| [2048, 32/8, 64] | 4.62 | 4.16 |
-| [128, 8/8, 128] | 4.02 | 3.51 |
-| [128, 32/8, 128] | 3.46 | 2.98 |
-| [512, 8/8, 128] | 4.26 | 3.16 |
-| [512, 32/8, 128] | 3.53 | 3.15 |
-| [2048, 8/8, 128] | 5.69 | 4.16 |
-| [2048, 32/8, 128] | 4.62 | 4.26 |
+| [128, 8/8, 64] | 4.15 (4.04–6.32) | 3.03 (3.02–3.73) |
+| [128, 32/8, 64] | 3.30 (3.29–3.35) | 2.92 (2.89–3.31) |
+| [512, 8/8, 64] | 4.36 (4.27–4.47) | 3.12 (3.04–5.46) |
+| [512, 32/8, 64] | 3.58 (3.54–5.78) | 2.96 (2.89–4.73) |
+| [2048, 8/8, 64] | 4.66 (4.56–7.59) | 3.17 (3.04–5.44) |
+| [2048, 32/8, 64] | 4.44 (4.34–6.88) | 3.75 (3.46–5.62) |
+| [128, 8/8, 128] | 4.02 (3.87–6.91) | 3.01 (2.97–5.51) |
+| [128, 32/8, 128] | 3.54 (3.34–5.87) | 3.03 (2.98–5.34) |
+| [512, 8/8, 128] | 4.48 (4.30–7.52) | 3.40 (3.13–5.99) |
+| [512, 32/8, 128] | 3.64 (3.50–7.17) | 3.11 (3.03–6.54) |
+| [2048, 8/8, 128] | 5.70 (5.46–9.27) | 5.22 (4.10–6.84) |
+| [2048, 32/8, 128] | 4.97 (4.51–7.36) | 3.93 (3.88–6.54) |
 
-"Naive JS reference in this repo" is `support/reference.mjs`, the scalar correctness
-oracle used by the tests. It allocates a new output array and recomputes `Math.pow` per
-element; it is not an optimized implementation, and no other library was benchmarked.
-A second back-to-back run on the same commit differed from this one by a median of 2.6%
-per cell and by up to 41% in the noisiest cell, so treat small differences as noise.
-Reproduce with:
+The **plain in-place scalar loop** (`bench/baseline.mjs`) is not part of this package. It is what a
+straightforward hand-written implementation does: inverse frequencies once per call into a reused
+scratch array, `Math.cos`/`Math.sin` for every pair, results written back in place, no output
+allocation. Its numbers are in the same range as this package's no-cache path, which does the same
+per-pair arithmetic plus input validation. The cached columns read precomputed cos/sin values from
+the optional trig table instead of calling `Math.cos`/`Math.sin` for every pair.
+
+Not shown: the JSON also times `support/reference.mjs` (group `oracle`), the correctness oracle
+used by the tests. It allocates a new output array and recomputes `Math.pow` per element, so it
+is not a performance baseline and is deliberately left out of these tables.
+
+**Run-to-run noise:** across the 5 runs, a cell's min–max range was a median of 48% of the
+cell's median (up to 113.1%, [512, 32/8, 128] applyRoPEQK, cached trig table), while a typical run
+differed from the cell median by a median of 2.1%. Most of the spread comes from occasional slow
+runs on this shared VM: the number of the 48 cells more than 20% above their median was
+4, 0, 5, 9, 20 in runs 1–5. Treat differences inside the ranges as noise. Reproduce with:
 
 ```sh
-npm run bench                       # prints the tables; JSON goes to ignored reports/
-npm run bench -- --out my-run.json  # choose the JSON path
+npm run bench                       # one run: prints the tables; JSON goes to ignored reports/
+npm run bench -- --out run-1.json   # choose the JSON path; repeat for run-2.json, run-3.json, ...
+npm run bench:aggregate -- --out combined.json run-1.json run-2.json run-3.json
 ```
 
 ## Precision, caching and migration

@@ -54,6 +54,11 @@ export function aggregateRuns(runs) {
   const shown = cases.filter(c => c.group !== 'oracle');
   const spreads = shown.map(c => c.spreadPercentOfMedian);
   const worst = shown.reduce((a, b) => (b.spreadPercentOfMedian > a.spreadPercentOfMedian ? b : a));
+  // Typical deviation: per cell, the median over runs of |run - cell median| / cell median.
+  const typical = shown.map(c => median(c.perRunMedianNsPerPair.map(v => Math.abs(v - c.medianOfRunMediansNsPerPair)))
+    / c.medianOfRunMediansNsPerPair * 100);
+  const slowCellsPerRun = runs.map((_, r) => shown.filter(c =>
+    c.perRunMedianNsPerPair[r] > 1.2 * c.medianOfRunMediansNsPerPair).length);
   return {
     runCount: runs.length,
     sourceCommit: first.source.commit,
@@ -66,6 +71,10 @@ export function aggregateRuns(runs) {
       medianSpreadPercent: round(median(spreads)),
       maxSpreadPercent: round(worst.spreadPercentOfMedian),
       maxSpreadCase: label(worst),
+      medianTypicalDeviationPercent: round(median(typical)),
+      slowCellsPerRunDefinition: 'per run, README cells more than 20% above the cell median',
+      slowCellsPerRun,
+      readmeCellCount: shown.length,
     },
     cases,
   };
