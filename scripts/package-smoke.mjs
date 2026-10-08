@@ -11,8 +11,11 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const npmCli = process.env.npm_execpath;
 if (!npmCli) throw new Error('Run this check with npm run test:package');
 const temp = mkdtempSync(join(tmpdir(), 'rope-package-'));
+// --dry-run=false: under `npm publish --dry-run` (prepublishOnly), npm exports
+// npm_config_dry_run to child processes, which would stop the inner pack from writing.
 const npm = (args, cwd) => execFileSync(process.execPath, [npmCli, ...args,
-  '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', join(temp, 'cache')], {
+  '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--dry-run=false',
+  '--cache', join(temp, 'cache')], {
   cwd, encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'],
 });
 try {
@@ -28,9 +31,11 @@ try {
   writeFileSync(join(consumer, 'probe.mjs'), `
 import assert from 'node:assert/strict';
 import { lstatSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import * as rope from 'lyle-rope-kernel';
 import { applyRoPEWebGPU, WEBGPU_ROPE_STATUS, WGSL_ROPE_SHADER } from 'lyle-rope-kernel/webgpu';
 assert.equal(lstatSync('node_modules/lyle-rope-kernel').isSymbolicLink(), false);
+assert.equal(createRequire(import.meta.url)('lyle-rope-kernel/package.json').version, '${packed.version}');
 for (const name of ['applyRoPE', 'applyRoPESplitHalf', 'applyRoPEWithPlan',
   'applyRoPESplitHalfWithPlan', 'applyRoPEQK', 'applyToHead', 'createRoPEPlan',
   'verifyNormPreservation']) assert.equal(typeof rope[name], 'function', name);

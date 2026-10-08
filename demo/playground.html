@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>lyle-rope-kernel-js: live browser demo</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="playground.css">
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="./">Project page</a> · <a href="https://github.com/MiMindMendinc/lyle-rope-kernel-js">Source on GitHub</a></p>
+  <h1>Live browser demo</h1>
+  <p class="muted">This page runs the repository's unmodified ES module <code>src/rope-kernel.js</code>
+  in your browser on synthetic random data, then checks the result against the repository's
+  independent scalar reference (<code>support/reference.mjs</code>). Nothing is uploaded: the page
+  makes no network requests beyond loading its own files, and has no analytics or trackers.</p>
+
+  <form id="controls" class="card" novalidate>
+    <h2>Configuration</h2>
+    <div class="grid">
+      <label>API
+        <select id="api">
+          <option value="single">Single tensor [seq, d]</option>
+          <option value="packed">Packed Q/K [seq, h, d]</option>
+        </select>
+      </label>
+      <label>Layout
+        <select id="layout">
+          <option value="adjacent">Adjacent (x0, x1)</option>
+          <option value="split-half">Split-half (x[i], x[i+d/2])</option>
+        </select>
+      </label>
+      <label>headDim
+        <select id="headDim">
+          <option>8</option><option>16</option><option>32</option><option selected>64</option><option>128</option><option>256</option>
+        </select>
+      </label>
+      <label>Sequence length
+        <input id="seqLen" type="number" min="1" max="4096" step="1" value="512" inputmode="numeric">
+      </label>
+      <label>startPos
+        <input id="startPos" type="number" min="0" max="131071" step="1" value="0" inputmode="numeric">
+      </label>
+      <label>base
+        <input id="base" type="number" min="1.0001" max="10000000" step="any" value="10000" inputmode="decimal">
+      </label>
+      <label class="packed-only">Q heads
+        <input id="qHeads" type="number" min="1" max="64" step="1" value="32" inputmode="numeric">
+      </label>
+      <label class="packed-only">KV heads
+        <input id="kvHeads" type="number" min="1" max="64" step="1" value="8" inputmode="numeric">
+      </label>
+      <label>Seed (synthetic data)
+        <input id="seed" type="number" min="0" max="4294967295" step="1" value="42" inputmode="numeric">
+      </label>
+      <label class="check"><input id="cached" type="checkbox" checked><span>Cached trig table (plan <code>maxSeqLen</code> = startPos + seq)</span></label>
+    </div>
+    <div class="actions">
+      <button id="run" type="submit">Run + check</button>
+      <button id="time" type="button">Time it in your browser</button>
+      <button id="reseed" type="button" class="secondary">New random seed</button>
+    </div>
+    <p class="muted hint">Changes apply automatically. Positions startPos through startPos + seqLen − 1
+    must stay at or below 131071, the highest position the repository's numerical tests cover.</p>
+    <p id="config-error" class="error" role="alert" hidden></p>
+  </form>
+
+  <section class="card" aria-labelledby="check-title">
+    <h2 id="check-title">Correctness check</h2>
+    <div id="check" aria-live="polite"><p class="muted">Loading the kernel…</p></div>
+  </section>
+
+  <section class="card" aria-labelledby="timing-title">
+    <h2 id="timing-title">Timing in your browser</h2>
+    <div id="timing" aria-live="polite"><p class="muted">Not run yet. Press <strong>Time it in your browser</strong>.
+    The page will be busy for about half a second.</p></div>
+  </section>
+
+  <section id="viz" class="card" aria-labelledby="viz-title">
+    <h2 id="viz-title">What the rotation does</h2>
+    <p class="muted">Left: cos(θ) for each position (rows, top = startPos) and frequency pair
+    (columns, left = highest frequency), from the plan's <code>invFreq</code>. Right: for the last token
+    (head 0 of Q in packed mode), each dial shows one pair before (grey) and after (blue) rotation.
+    Low-index pairs turn fastest.</p>
+    <div class="viz">
+      <figure>
+        <canvas id="heatmap" width="512" height="320" role="img" aria-label="Heatmap of rotation cosines"></canvas>
+        <figcaption><span class="swatch neg"></span> cos θ = −1 <span class="swatch zero"></span> 0 <span class="swatch pos"></span> +1</figcaption>
+      </figure>
+      <figure>
+        <canvas id="dials" width="512" height="320" role="img" aria-label="Before and after vectors for selected pairs"></canvas>
+        <figcaption id="dials-caption">Pairs of the last token</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Scope</h2>
+    <p class="muted">This is a CPU JavaScript kernel demo, not an inference engine. Browser runtimes
+    are not part of the repository's Node CI matrix; this page's own check is what tells you whether
+    the kernel matched the reference in <em>your</em> browser. Timing here is a rough, single-browser
+    number: browser timers are deliberately coarse, the page runs on the main thread, and results vary
+    between devices, browsers and runs.</p>
+  </section>
+</main>
+<script type="module" src="playground.js"></script>
+</body>
+</html>

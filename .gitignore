@@ -10,3 +10,4 @@ coverage/
 
 /reports/
 *.tgz
+/_site/

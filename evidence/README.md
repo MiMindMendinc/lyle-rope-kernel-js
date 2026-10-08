@@ -54,3 +54,32 @@ For a fresh report on the proposed branch, run `npm run evidence`. Generated
 reports stay in ignored `reports/`; nothing is uploaded or published by the harness.
 The committed run is local evidence, not a substitute for inspecting the PR's
 Linux/Windows Node 22/24 CI outcomes. No release tag or npm publication is implied.
+
+# Throughput runs (2026-10-08)
+
+[`bench-2026-10-08.json`](bench-2026-10-08.json) combines **5 back-to-back `npm run bench`
+runs** on source commit `40906c0dd0321048d92cfefb51b5e77e0d435697` (every run records a clean
+tree), Node 22.23.3 on a shared Linux sandbox VM (Intel Xeon, 8 logical CPUs). It was built
+with `npm run bench:aggregate`, which refuses fewer than 3 runs, dirty trees, mixed commits,
+mixed Node/CPU, or any case that failed its reference check. The file holds:
+
+- `runs`: each complete per-run report (environment, method, every raw sample, and the
+  maximum absolute error of each timed case against `support/reference.mjs`, all within `1e-6`);
+- `summary.cases`: per case, the five per-run medians, their median (the README value) and
+  their min–max (the README range);
+- `summary.variability`: the figures quoted in the README noise sentence (median and maximum
+  min–max spread as a percentage of the cell median, the median typical deviation, and how
+  many cells were more than 20% above their median in each run).
+
+`test/bench-evidence.test.js` recomputes the summary from the stored runs and checks that the
+README tables and noise sentence match it, so the README cannot drift from this file.
+The comparison column is `bench/baseline.mjs`, a plain in-place scalar loop that is not part of
+the package. Group `oracle` times the allocating reference oracle for completeness only; it is
+not a performance baseline and is not shown in the README.
+
+One machine, one session: indicative only, not a cross-library, GPU or end-to-end model
+comparison. The aggregation code was finalized after the runs (it only post-processes the
+stored JSON); the measured bench code is unchanged from the recorded commit.
+
+[`bench-2026-10-07.json`](bench-2026-10-07.json) is an earlier single run on `89583f8` (before
+the baseline column existed). It is kept for history and is not used by the README.
