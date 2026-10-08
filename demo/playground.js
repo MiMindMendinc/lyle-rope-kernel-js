@@ -2,8 +2,8 @@
 import * as kernel from './src/rope-kernel.js';
 import * as reference from './support/reference.js';
 import {
-  LIMITS, NUMBER_FIELDS, configFromFields, cosineGrid, maxStartPosFor, pairAt, runCheck, timeKernel,
-  validateConfig,
+  FIELD_LABELS, LAYOUT_LABELS, LIMITS, NUMBER_FIELDS, configFromFields, cosineGrid, maxStartPosFor, pairAt,
+  runCheck, timeKernel, validateConfigFields,
 } from './playground-core.js';
 
 const $ = id => document.getElementById(id);
@@ -37,10 +37,47 @@ function syncPositionLimits(cfg) {
     : LIMITS.maxSeqLen);
 }
 
+const FIELD_IDS = ['api', 'layout', 'headDim', 'cached', ...NUMBER_FIELDS];
+
+// A message slot right under each control, so an error appears next to the field that caused it.
+function fieldErrorSlot(id) {
+  const existing = $(id + '-error');
+  if (existing) return existing;
+  const slot = document.createElement('span');
+  slot.id = id + '-error';
+  slot.className = 'field-error error';
+  // Hidden from the label's accessible name; read out through the control's aria-describedby.
+  slot.setAttribute('aria-hidden', 'true');
+  slot.hidden = true;
+  $(id).closest('label').append(slot);
+  return slot;
+}
+
 function showConfigErrors(errors) {
+  const byField = new Map();
+  for (const { field, message } of errors) {
+    byField.set(field, byField.has(field) ? byField.get(field) + ' ' + message + '.' : message + '.');
+  }
+  for (const id of FIELD_IDS) {
+    const control = $(id);
+    const slot = fieldErrorSlot(id);
+    const text = byField.get(id);
+    slot.hidden = !text;
+    slot.textContent = text ?? '';
+    if (text) {
+      control.setAttribute('aria-invalid', 'true');
+      control.setAttribute('aria-describedby', slot.id);
+    } else {
+      control.removeAttribute('aria-invalid');
+      control.removeAttribute('aria-describedby');
+    }
+  }
+  // Short summary below the buttons; the full message sits next to each field.
+  const labels = [...byField.keys()].map(field => FIELD_LABELS[field]);
   const box = $('config-error');
   box.hidden = errors.length === 0;
-  box.textContent = errors.join('. ');
+  box.textContent = labels.length === 1 ? `Check the highlighted setting: ${labels[0]}.`
+    : `Check the ${labels.length} highlighted settings: ${labels.join(', ')}.`;
   return errors.length === 0;
 }
 
@@ -85,7 +122,7 @@ function renderCheck(cfg, result) {
   table.append(
     row('Function', api),
     row('Shape', shape),
-    row('Layout / startPos / base', `${cfg.layout} / ${cfg.startPos} / ${cfg.base}`),
+    row('Layout / start position / base', `${LAYOUT_LABELS[cfg.layout]} / ${cfg.startPos} / ${cfg.base}`),
     row('Plan', cfg.cached ? `cached trig table (maxSeqLen ${cfg.startPos + cfg.seqLen})` : 'frequencies only'),
     row('Max absolute error vs reference', `${fmt(result.maxAbsError)} (tolerance ${result.tolerance})`),
     row('Relative L2 norm change (rotation should be ~0)', fmt(result.relativeNormChange)),
@@ -199,14 +236,14 @@ function cancelPendingRun() {
   pendingRun = 0;
 }
 
-// force: re-run even if the configuration has not changed (Run + check, Enter, new seed).
+// force: re-run even if the configuration has not changed (Re-run check, Enter, new seed).
 function runAndRender({ force = false } = {}) {
   cancelPendingRun();
   const cfg = readConfig();
   syncPositionLimits(cfg);
-  const errors = validateConfig(cfg);
+  const errors = validateConfigFields(cfg);
   if (!showConfigErrors(errors)) {
-    showNotRun('Fix the configuration above; results from the previous run were cleared.');
+    showNotRun('Fix the highlighted settings above; results from the previous run were cleared.');
     return false;
   }
   const key = configKey(cfg);
@@ -293,3 +330,5 @@ for (const id of NUMBER_FIELDS) {
 }
 syncPackedFields();
 runAndRender();
+// Tells playground-fallback.js that the module loaded and started.
+document.documentElement.dataset.demo = 'ready';

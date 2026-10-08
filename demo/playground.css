@@ -12,7 +12,7 @@ h1{margin:.2em 0}
 .card h2{margin-top:0;font-size:1.15em}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
 label{display:flex;flex-direction:column;gap:4px;font-size:.92em;color:var(--muted)}
-label.check{flex-direction:row;align-items:center;gap:10px;color:var(--text);min-height:44px;padding:4px 0;cursor:pointer}
+label.check{flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px;color:var(--text);min-height:44px;padding:4px 0;cursor:pointer}
 select,input[type=number]{background:#0f0f12;color:var(--text);border:1px solid #3f3f46;border-radius:8px;padding:7px 8px;font:inherit;min-width:0;min-height:44px}
 input[type=checkbox]{flex:none;width:24px;height:24px;margin:0;cursor:pointer}
 .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
@@ -21,6 +21,9 @@ button.secondary{background:#3f3f46;color:var(--text)}
 button:disabled{opacity:.55;cursor:wait}
 button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #fbbf24;outline-offset:2px}
 .error{color:var(--bad)}
+.field-error{font-size:.92em;flex-basis:100%}
+label.check>span:not(.field-error){flex:1 1 0;min-width:0}
+[aria-invalid=true]{border-color:var(--bad)}
 .hint{font-size:.85em;margin:10px 0 0}
 .hidden-packed .packed-only{display:none}
 .verdict{font-size:1.25em;font-weight:700;margin:.2em 0}

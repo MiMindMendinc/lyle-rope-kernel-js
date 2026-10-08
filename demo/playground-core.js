@@ -38,6 +38,22 @@ export function parseNumberField(text) {
 
 export const NUMBER_FIELDS = Object.freeze(['seqLen', 'startPos', 'base', 'qHeads', 'kvHeads', 'seed']);
 
+// Form labels: plain English with the code name in parentheses. Validation messages use the same text.
+export const FIELD_LABELS = Object.freeze({
+  api: 'API',
+  layout: 'Layout',
+  headDim: 'Head dim (headDim)',
+  seqLen: 'Sequence length (seqLen)',
+  startPos: 'Start position (startPos)',
+  base: 'RoPE base (base)',
+  qHeads: 'Q heads (qHeads)',
+  kvHeads: 'KV heads (kvHeads)',
+  seed: 'Seed (synthetic data)',
+  cached: 'Cached trig table',
+});
+
+export const LAYOUT_LABELS = Object.freeze({ adjacent: 'Adjacent', 'split-half': 'Split-half' });
+
 // Build a config from raw form values (strings for the number fields).
 export function configFromFields(fields) {
   const cfg = {
@@ -55,25 +71,28 @@ export function maxStartPosFor(seqLen) {
   return LIMITS.maxPosition - seqLen + 1;
 }
 
-export function validateConfig(cfg) {
+// Each problem as { field, message }; `field` names the form control the page marks next to it.
+// Messages are complete sentences without a trailing period, each starting with a capital letter.
+export function validateConfigFields(cfg) {
   const errors = [];
-  const int = (value, min, max, name) => {
+  const add = (field, message) => errors.push({ field, message });
+  const int = (value, min, max, field) => {
     if (typeof value !== 'number' || Number.isNaN(value)) {
-      errors.push(`${name} is empty or not a number; enter an integer from ${min} to ${max}`);
+      add(field, `${FIELD_LABELS[field]} is empty or not a number; enter an integer from ${min} to ${max}`);
     } else if (!Number.isSafeInteger(value) || value < min || value > max) {
-      errors.push(`${name} must be an integer from ${min} to ${max}`);
+      add(field, `${FIELD_LABELS[field]} must be an integer from ${min} to ${max}`);
     }
   };
-  if (cfg.api !== 'single' && cfg.api !== 'packed') errors.push('api must be single or packed');
-  if (cfg.layout !== 'adjacent' && cfg.layout !== 'split-half') errors.push('layout must be adjacent or split-half');
-  if (!LIMITS.headDims.includes(cfg.headDim)) errors.push('headDim must be one of ' + LIMITS.headDims.join(', '));
+  if (cfg.api !== 'single' && cfg.api !== 'packed') add('api', 'API must be single or packed');
+  if (cfg.layout !== 'adjacent' && cfg.layout !== 'split-half') add('layout', 'Layout must be adjacent or split-half');
+  if (!LIMITS.headDims.includes(cfg.headDim)) add('headDim', `${FIELD_LABELS.headDim} must be one of ${LIMITS.headDims.join(', ')}`);
   int(cfg.seqLen, 1, LIMITS.maxSeqLen, 'seqLen');
   int(cfg.startPos, 0, LIMITS.maxStartPos, 'startPos');
   int(cfg.seed, 0, 0xffffffff, 'seed');
   if (typeof cfg.base !== 'number' || Number.isNaN(cfg.base)) {
-    errors.push('base is empty or not a number; enter a value greater than 1 and at most 10000000');
+    add('base', `${FIELD_LABELS.base} is empty or not a number; enter a value greater than 1 and at most 10000000`);
   } else if (!Number.isFinite(cfg.base) || cfg.base <= 1 || cfg.base > 1e7) {
-    errors.push('base must be greater than 1 and at most 10000000');
+    add('base', `${FIELD_LABELS.base} must be greater than 1 and at most 10000000`);
   }
   if (cfg.api === 'packed') {
     int(cfg.qHeads, 1, LIMITS.maxHeads, 'qHeads');
@@ -82,19 +101,24 @@ export function validateConfig(cfg) {
   if (!errors.length) {
     const last = cfg.startPos + cfg.seqLen - 1;
     if (last > LIMITS.maxPosition) {
-      errors.push(`startPos + seqLen - 1 (the last position, ${last}) must be at most ${LIMITS.maxPosition}, ` +
-        `the highest position the repository's numerical tests cover; with seqLen ${cfg.seqLen}, ` +
-        `use startPos ${Math.max(0, maxStartPosFor(cfg.seqLen))} or lower`);
+      add('startPos', `Start position + sequence length - 1 (the last position, ${last}) must be at most ` +
+        `${LIMITS.maxPosition}, the highest position the repository's numerical tests cover; ` +
+        `with seqLen ${cfg.seqLen}, use startPos ${Math.max(0, maxStartPosFor(cfg.seqLen))} or lower`);
     }
     const heads = cfg.api === 'packed' ? Math.max(cfg.qHeads, cfg.kvHeads) : 1;
     if (cfg.seqLen * heads * cfg.headDim > LIMITS.maxElementsPerTensor) {
-      errors.push(`seqLen x heads x headDim must be at most ${LIMITS.maxElementsPerTensor} per tensor`);
+      add('seqLen', `Sequence length x heads x head dim must be at most ${LIMITS.maxElementsPerTensor} per tensor`);
     }
     if (cfg.cached && (cfg.startPos + cfg.seqLen) * cfg.headDim * 8 > LIMITS.maxCacheBytes) {
-      errors.push('cached plan would exceed 64 MiB; lower startPos/seqLen or turn the cache off');
+      add('cached', 'Cached plan would exceed 64 MiB; lower the start position or sequence length, ' +
+        'or turn the cache off');
     }
   }
   return errors;
+}
+
+export function validateConfig(cfg) {
+  return validateConfigFields(cfg).map(error => error.message);
 }
 
 export function makePlan(kernel, cfg) {

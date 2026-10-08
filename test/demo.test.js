@@ -9,11 +9,12 @@ import { performance } from 'node:perf_hooks';
 import * as kernel from '../src/rope-kernel.js';
 import * as reference from '../support/reference.mjs';
 import {
-  LIMITS, NUMBER_FIELDS, TOLERANCE, configFromFields, cosineGrid, maxStartPosFor, pairAt,
-  parseNumberField, runCheck, seededInput, timeKernel, validateConfig,
+  FIELD_LABELS, LIMITS, NUMBER_FIELDS, TOLERANCE, configFromFields, cosineGrid, maxStartPosFor, pairAt,
+  parseNumberField, runCheck, seededInput, timeKernel, validateConfig, validateConfigFields,
 } from '../demo/playground-core.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const FIELD_IDS_HAVE_LABELS = field => typeof FIELD_LABELS[field] === 'string';
 const base = { api: 'single', layout: 'adjacent', headDim: 64, seqLen: 33, startPos: 0,
   base: 10000, cached: false, seed: 7, qHeads: 4, kvHeads: 2 };
 
@@ -76,13 +77,29 @@ describe('browser demo core (runs the same logic as the page)', () => {
       for (const blank of ['', '  ', 'x']) {
         const errors = validateConfig(configFromFields({ ...fields, api, [name]: blank }));
         assert.equal(errors.length, 1, `${name}=${JSON.stringify(blank)}: ${errors}`);
-        assert.match(errors[0], new RegExp(`^${name} is empty or not a number`));
+        assert.ok(errors[0].startsWith(`${FIELD_LABELS[name]} is empty or not a number`), errors[0]);
+        assert.equal(validateConfigFields(configFromFields({ ...fields, api, [name]: blank }))[0].field, name);
         assert.throws(() => runCheck(kernel, reference, configFromFields({ ...fields, api, [name]: blank })),
           RangeError);
       }
     }
     // A literal 0 is still a valid startPos and seed.
     assert.deepEqual(validateConfig(configFromFields({ ...fields, startPos: '0', seed: '0' })), []);
+  });
+
+  it('names the field behind each error, with capitalized sentence-style messages', () => {
+    const cache = validateConfigFields({ ...base, cached: true, startPos: 131071 - 32, headDim: 256 });
+    assert.deepEqual(cache.map(error => error.field), ['cached']);
+    assert.match(cache[0].message, /^Cached plan would exceed 64 MiB/);
+    const position = validateConfigFields({ ...base, seqLen: 4096, startPos: 131071 });
+    assert.deepEqual(position.map(error => error.field), ['startPos']);
+    const many = validateConfigFields({ ...base, seqLen: 0, base: 1, headDim: 6 });
+    assert.deepEqual(many.map(error => error.field).sort(), ['base', 'headDim', 'seqLen']);
+    for (const { field, message } of many) {
+      assert.match(message, /^[A-Z]/, message);
+      assert.ok(!message.endsWith('.'), message);
+      assert.ok(FIELD_IDS_HAVE_LABELS(field));
+    }
   });
 
   it('keeps every rotated position within the range covered by the numerical tests', () => {
@@ -139,7 +156,7 @@ describe('static Pages site build', () => {
     try {
       execFileSync(process.execPath, [join(root, 'scripts/build-site.mjs'), out], { stdio: 'pipe' });
       for (const file of ['index.html', 'playground.html', 'playground.css', 'playground.js',
-        'playground-core.js', 'src/rope-kernel.js', 'support/reference.js']) {
+        'playground-core.js', 'playground-fallback.js', 'src/rope-kernel.js', 'support/reference.js']) {
         assert.ok(existsSync(join(out, file)), file);
       }
       assert.deepEqual(readFileSync(join(out, 'src/rope-kernel.js')),
@@ -163,6 +180,20 @@ describe('static Pages site build', () => {
       const page = readFileSync(join(out, 'playground.html'), 'utf8');
       assert.match(page, /connect-src 'none'/);
       assert.match(page, /<script type="module" src="playground.js"><\/script>/);
+      // A classic script reports a module that failed to load; the module marks itself ready.
+      assert.match(page, /<script src="playground-fallback.js" defer><\/script>/);
+      assert.match(readFileSync(join(out, 'playground.js'), 'utf8'), /dataset\.demo = 'ready'/);
+      // The page names the reference file it actually loads.
+      assert.match(page, /<code>support\/reference\.js<\/code>/);
+      for (const html of ['index.html', 'playground.html']) {
+        const text = readFileSync(join(out, html), 'utf8');
+        for (const tag of ['name="description"', 'property="og:title"', 'property="og:description"',
+          'property="og:url"', 'property="og:type"']) {
+          assert.ok(text.includes(tag), `${html}: ${tag}`);
+        }
+        assert.match(text, /Content-Security-Policy/, html);
+        assert.doesNotMatch(text, /og:image/, `${html}: no external preview image`);
+      }
     } finally {
       rmSync(out, { recursive: true, force: true });
     }
