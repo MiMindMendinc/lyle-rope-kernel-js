@@ -6,7 +6,8 @@
   "main": "src/rope-kernel.js",
   "exports": {
     ".": "./src/rope-kernel.js",
-    "./webgpu": "./src/webgpu-rope.js"
+    "./webgpu": "./src/webgpu-rope.js",
+    "./package.json": "./package.json"
   },
   "files": [
     "src",
@@ -15,24 +16,35 @@
     "CHANGELOG.md",
     "docs/NUMERICS.md"
   ],
+  "sideEffects": false,
   "scripts": {
     "test": "node --test",
     "benchmark": "node benchmark.js",
     "benchmark:hot": "node benchmark.js --mode=hot",
     "benchmark:cached": "node benchmark.js --mode=cached",
     "benchmark:qk": "node benchmark-qk.js",
+    "bench": "node bench/throughput.mjs",
     "test:package": "node scripts/package-smoke.mjs",
     "test:performance": "node --test bench/cached-regression.mjs",
     "verify": "npm test && npm run test:package",
     "evidence": "node scripts/evidence.mjs",
-    "example": "node examples/minimal-transformer.js"
+    "example": "node examples/minimal-transformer.js",
+    "site:build": "node scripts/build-site.mjs",
+    "site:serve": "node scripts/serve-site.mjs",
+    "prepublishOnly": "npm run verify"
   },
   "keywords": [
     "rope",
-    "llm",
+    "rotary-position-embedding",
+    "rotary-embeddings",
+    "positional-encoding",
     "transformer",
-    "javascript",
-    "inference"
+    "llm",
+    "inference",
+    "float32array",
+    "esm",
+    "zero-dependency",
+    "javascript"
   ],
   "repository": {
     "type": "git",

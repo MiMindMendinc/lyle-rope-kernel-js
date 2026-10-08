@@ -28,9 +28,11 @@ try {
   writeFileSync(join(consumer, 'probe.mjs'), `
 import assert from 'node:assert/strict';
 import { lstatSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import * as rope from 'lyle-rope-kernel';
 import { applyRoPEWebGPU, WEBGPU_ROPE_STATUS, WGSL_ROPE_SHADER } from 'lyle-rope-kernel/webgpu';
 assert.equal(lstatSync('node_modules/lyle-rope-kernel').isSymbolicLink(), false);
+assert.equal(createRequire(import.meta.url)('lyle-rope-kernel/package.json').version, '${packed.version}');
 for (const name of ['applyRoPE', 'applyRoPESplitHalf', 'applyRoPEWithPlan',
   'applyRoPESplitHalfWithPlan', 'applyRoPEQK', 'applyToHead', 'createRoPEPlan',
   'verifyNormPreservation']) assert.equal(typeof rope[name], 'function', name);

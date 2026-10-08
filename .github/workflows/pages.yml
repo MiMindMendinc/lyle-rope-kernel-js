@@ -17,8 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      # Copies demo/ plus the unmodified src/rope-kernel.js and support/reference.mjs
+      # into _site/ so the live browser demo can import the real ES module.
+      - run: node scripts/build-site.mjs _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: demo
+          path: _site
       - uses: actions/deploy-pages@v4
