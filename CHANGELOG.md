@@ -18,6 +18,15 @@
 - Replace static verification/test-count badges and plaques with scoped status,
   a live main-branch CI badge, migration notes and reproducible commands.
 - Target Node 22/24 on Linux/Windows in CI; disable install lifecycle scripts.
+- Add `npm run bench`: a Node-built-ins throughput matrix (headDim 64/128, seq
+  128/512/2048, packed 8/8 and 32/8 heads) that checks each case against the scalar
+  reference before timing; retain one run under `evidence/` with machine details.
+- Add a live browser demo (`demo/playground.html`) that imports the unmodified ES
+  module, checks it against the reference in the page and times it in the browser;
+  Pages now builds `_site/` with `npm run site:build`. No analytics or network requests.
+- Packaging metadata for a future publish: `sideEffects: false`, a
+  `./package.json` export, more specific keywords and a `prepublishOnly` verify gate.
+  The package is still not published.
 
 ### Compatibility notes
 

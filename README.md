@@ -3,6 +3,12 @@
 Experimental, zero-dependency JavaScript RoPE library with in-place rotation,
 reusable plans, and packed Q/K support.
 
+**[Live browser demo](https://mimindmendinc.github.io/lyle-rope-kernel-js/playground.html)**:
+rotate synthetic data with the real ES module in your browser, see the angles, check
+the result against the scalar reference, and time it on your device. No analytics,
+no network requests beyond the page's own files.
+· [Benchmarks](#benchmarks-one-machine-indicative-only) · [Install](#install)
+
 [![CI](https://github.com/MiMindMendinc/lyle-rope-kernel-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MiMindMendinc/lyle-rope-kernel-js/actions/workflows/ci.yml)
 
 The badge tracks `main`; proposed changes have their own pull-request checks.
@@ -22,10 +28,35 @@ Experimental prerelease / install / migration notes: [docs/PRERELEASE_NOTES.md](
 | Example | Single-head, non-causal attention on small deterministic inputs | `test/example.test.js` |
 | Packaging | Actual tarball installed into a fresh offline consumer | `npm run test:package` |
 | Performance | Repeated local measurements against this package's per-head path | `npm run evidence` |
+| Throughput | Median ns per rotated pair over a fixed shape matrix; each case reference-checked first | `npm run bench`, `evidence/bench-*.json` |
+| Browser demo | Same kernel file served by Pages; in-page reference check | `demo/playground.html`, `test/demo.test.js` |
 
 Not implemented: GPU execution, a transformer, model loading, an attention engine,
 a KV cache, Llama 3/YaRN/NTK scaling, or end-to-end model-quality validation.
 `startPos` supplies an absolute position; it does not implement a KV cache.
+
+## Install
+
+> **Not yet on npm.** No version of this package has been published to the npm
+> registry. Until one is, use a checkout or a local tarball (next section).
+> Once `1.1.0-rc.1` is published, this is the install command:
+
+```sh
+npm install lyle-rope-kernel@1.1.0-rc.1
+```
+
+```js
+import { createRoPEPlan, applyRoPEWithPlan } from 'lyle-rope-kernel';
+
+const headDim = 64, seqLen = 128;
+const plan = createRoPEPlan(headDim, 10000, { maxSeqLen: seqLen }); // optional trig cache
+const x = new Float32Array(seqLen * headDim); // one head, shape [seqLen, headDim]
+applyRoPEWithPlan(x, plan); // rotates in place for positions 0..127
+```
+
+It is a single ES module with no dependencies and no install scripts. Node 22+ is
+required and CI-tested on Node 22 and 24; browsers are exercised only by the live demo's
+own in-page check, not by CI.
 
 ## Run from a checkout
 
@@ -96,6 +127,57 @@ the remaining rows unchanged. Incomplete rows are rejected even with explicit
 `seqLen`. All positions and lengths, including the exclusive end
 `startPos + seqLen`, must fit the safe-integer range.
 
+## Benchmarks (one machine, indicative only)
+
+Measured with `npm run bench` on **one machine**: Intel(R) Xeon(R) Processor (8 logical
+CPUs, shared Linux sandbox VM, not dedicated benchmark hardware), Node v22.23.3 (V8 12.4.254.21-node.57),
+linux 6.12.94+ x64, 2026-10-07, source commit `89583f8be19d`
+(clean tree). Raw samples and settings: [`evidence/bench-2026-10-07.json`](evidence/bench-2026-10-07.json).
+**These numbers are from one machine and one run, and are indicative only.** Your hardware,
+Node version and workload will give different numbers.
+
+Values are the **median nanoseconds per rotated (x0, x1) pair** (lower means less time
+per pair) over 11 samples of about 40 ms each, after a 150 ms warmup. The timed region is
+in-place rotation of one reused `Float32Array` starting at position 0; plan construction
+and input copies are not timed. Packed Q/K counts both Q and K pairs. Before timing, every
+kernel case is checked against the scalar reference within the tested `1e-6` tolerance.
+
+| Shape [seq, headDim] | applyRoPEWithPlan, no cache | applyRoPEWithPlan, cached | applyRoPESplitHalfWithPlan, cached | Naive JS reference in this repo |
+| --- | ---: | ---: | ---: | ---: |
+| [128, 64] | 14.2 | 2.91 | 3.29 | 95.4 |
+| [512, 64] | 18.3 | 2.72 | 3.05 | 100 |
+| [2048, 64] | 22.1 | 2.71 | 2.98 | 107 |
+| [128, 128] | 15.2 | 2.63 | 3.06 | 94.2 |
+| [512, 128] | 17.9 | 2.74 | 3.03 | 106 |
+| [2048, 128] | 22.9 | 2.62 | 3.08 | 111 |
+
+| Packed Q/K shape [seq, Q heads / KV heads, headDim] | applyRoPEQK, no cache | applyRoPEQK, cached |
+| --- | ---: | ---: |
+| [128, 8/8, 64] | 4.14 | 3.26 |
+| [128, 32/8, 64] | 3.46 | 2.96 |
+| [512, 8/8, 64] | 4.32 | 3.13 |
+| [512, 32/8, 64] | 3.49 | 2.97 |
+| [2048, 8/8, 64] | 4.90 | 3.22 |
+| [2048, 32/8, 64] | 4.62 | 4.16 |
+| [128, 8/8, 128] | 4.02 | 3.51 |
+| [128, 32/8, 128] | 3.46 | 2.98 |
+| [512, 8/8, 128] | 4.26 | 3.16 |
+| [512, 32/8, 128] | 3.53 | 3.15 |
+| [2048, 8/8, 128] | 5.69 | 4.16 |
+| [2048, 32/8, 128] | 4.62 | 4.26 |
+
+"Naive JS reference in this repo" is `support/reference.mjs`, the scalar correctness
+oracle used by the tests. It allocates a new output array and recomputes `Math.pow` per
+element; it is not an optimized implementation, and no other library was benchmarked.
+A second back-to-back run on the same commit differed from this one by a median of 2.6%
+per cell and by up to 41% in the noisiest cell, so treat small differences as noise.
+Reproduce with:
+
+```sh
+npm run bench                       # prints the tables; JSON goes to ignored reports/
+npm run bench -- --out my-run.json  # choose the JSON path
+```
+
 ## Precision, caching and migration
 
 Read the [numerical contract](docs/NUMERICS.md) before integrating with a model.
@@ -131,8 +213,9 @@ and 128-token workloads in both layouts. Every mode includes fresh input copies;
 plan creation is timed separately. Mode order rotates across samples. Results
 are machine/workload-specific, not claims against external libraries or GPUs.
 
-Legacy `benchmark`, `benchmark:hot`, `benchmark:cached`, and `benchmark:qk`
-commands remain exploratory tools. Use the evidence harness for retained raw
+`npm run bench` is the throughput matrix shown above; it writes JSON to ignored
+`reports/` unless given `--out`. Legacy `benchmark`, `benchmark:hot`, `benchmark:cached`,
+and `benchmark:qk` commands remain exploratory tools. Use the evidence harness for retained raw
 samples and environment information. The historical cached-path timing guard is
 now opt-in (`npm run test:performance`), not a correctness CI gate.
 
@@ -144,8 +227,12 @@ unsuitable as a production attention implementation. The former `SimpleAttention
 name remains an alias; a second `nHeads` argument now throws instead of being ignored.
 `node examples/packed-qk.js` demonstrates packed shapes only.
 
-`demo/index.html` is a static project information page, not an executing browser
-benchmark. Browser runtime correctness is not yet covered by this CI matrix.
+The Pages site is built by `npm run site:build` (copies `demo/` plus the unmodified
+`src/rope-kernel.js` and `support/reference.mjs` into ignored `_site/`). Preview it locally
+with `npm run site:serve` (loopback only, http://127.0.0.1:8080/). `demo/playground.html`
+runs the kernel in the browser on seeded synthetic data and reports its own reference
+check and browser timing; its logic is unit-tested in Node by `test/demo.test.js`.
+Browser runtime correctness is still not covered by this CI matrix.
 The `lyle-rope-kernel/webgpu` compatibility entry point is a **CPU fallback**:
 its shader is empty and it does not request a GPU device or run GPU computation.
 

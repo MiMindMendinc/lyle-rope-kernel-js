@@ -54,3 +54,12 @@ For a fresh report on the proposed branch, run `npm run evidence`. Generated
 reports stay in ignored `reports/`; nothing is uploaded or published by the harness.
 The committed run is local evidence, not a substitute for inspecting the PR's
 Linux/Windows Node 22/24 CI outcomes. No release tag or npm publication is implied.
+
+# Throughput run (2026-10-07)
+
+[`bench-2026-10-07.json`](bench-2026-10-07.json) is one `npm run bench` run on source commit
+`89583f8be19d7b78fc10ba9ffd9d0b39edcea2a2` (clean tree), Node 22.23.3 on a shared Linux
+sandbox VM (Intel Xeon, 8 logical CPUs). It contains every raw sample, the method, and the
+maximum absolute error of each timed kernel case against `support/reference.mjs`
+(all within `1e-6`). It is one machine and one run: indicative only, not a cross-library,
+GPU or end-to-end model comparison. The README benchmark tables are copied from this run.
