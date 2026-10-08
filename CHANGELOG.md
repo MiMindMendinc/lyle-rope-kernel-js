@@ -27,6 +27,14 @@
   Number fields re-run automatically; invalid or empty values clear the previous
   verdict, timing and visuals; positions are capped at 131071, the highest position
   the numerical tests cover.
+- Tests: scaled inputs up to 1e30 with a combined absolute + relative tolerance;
+  wrong tensor types (including `Float64Array` and cross-realm arrays), empty tensors,
+  and NaN/Infinity confinement to their pair, all pinned to current behavior.
+- Bench: a plain in-place scalar loop (`bench/baseline.mjs`) is the comparison column;
+  the allocating reference oracle is no longer shown as a baseline. README figures are
+  the median and min-max across several committed runs (`npm run bench:aggregate`).
+- Pages workflow: actions pinned to commit SHAs; `npm run verify` runs before deploy.
+- README links to files outside the npm tarball are absolute GitHub URLs.
 - Packaging metadata for a future publish: `sideEffects: false`, a
   `./package.json` export, more specific keywords and a `prepublishOnly` verify gate.
   The package is still not published.

@@ -35,6 +35,13 @@ the independent Float32-output oracle. The tolerance was not loosened from the
 original short-position tests. Original tests for known values, norm preservation,
 partial sequence operation, layouts and packed views remain in the suite.
 
+Scaled inputs are tested separately (`test/scaled-input.test.js`): the same fixtures
+multiplied by `1e3`, `1e6`, `1e12` and `1e30`, both layouts, cached and frequency-only
+plans, packed Q/K, positions through 131069, against a combined bound
+`|actual - reference| <= 1e-6 + 4 * 2^-23 * |reference|` (absolute plus four Float32
+ulps relative). A purely absolute `1e-6` bound is not meaningful at large magnitudes:
+at `|x| ~ 1e12` one Float32 ulp is about `1.2e5`.
+
 Safe integer positions outside this tested envelope are accepted when their
 angles are finite. That acceptance is not an accuracy guarantee for those
 positions. Different input magnitudes, runtimes, extreme bases and actual models
@@ -59,6 +66,12 @@ A positive finite base is required. Non-finite inverse frequencies or angles are
 rejected, but finite input data can still overflow Float32 on output. Tensor
 values are not scanned in the kernel. Callers must supply appropriate finite,
 bounded inputs, retain exclusive ownership while rotating, and budget allocations.
+`test/input-contract.test.js` pins the current behavior: a NaN or infinite element
+makes both elements of its rotated pair non-finite (positions > 0) and leaves every
+other element unchanged; near-`Float32` maximum finite inputs can overflow to
+`Infinity`. Tensors must be `Float32Array` from the same JavaScript realm (the check
+is `instanceof`), so `Float64Array`, integer arrays and cross-realm arrays throw
+`TypeError`. Empty tensors are no-ops, except `applyToHead`, which needs one head.
 Length arithmetic checks do not prevent all resource-exhaustion conditions.
 
 ## Plans and compatibility

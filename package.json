@@ -24,6 +24,7 @@
     "benchmark:cached": "node benchmark.js --mode=cached",
     "benchmark:qk": "node benchmark-qk.js",
     "bench": "node bench/throughput.mjs",
+    "bench:aggregate": "node bench/aggregate.mjs",
     "test:package": "node scripts/package-smoke.mjs",
     "test:performance": "node --test bench/cached-regression.mjs",
     "verify": "npm test && npm run test:package",

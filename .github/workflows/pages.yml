@@ -15,18 +15,23 @@ jobs:
     environment:
       name: github-pages
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to full commit SHAs, as in ci.yml (tag noted after each).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+      # Never deploy a site whose kernel, demo logic or package checks fail.
+      - run: npm ci --offline --ignore-scripts --no-audit --no-fund
+      - run: npm run verify
       # Copies demo/ plus the unmodified src/rope-kernel.js and support/reference.mjs
       # into _site/ so the live browser demo can import the real ES module.
       - run: node scripts/build-site.mjs _site
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: _site
-      - uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

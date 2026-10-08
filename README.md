@@ -16,14 +16,14 @@ This is an experimental CPU component, not a production-certified inference engi
 
 **Status vocabulary:** local `npm run verify` = TESTED LOCALLY; green PR checks = CI VERIFIED for that revision; green `main` badge = verified main. Do not conflate these.
 
-Experimental prerelease / install / migration notes: [docs/PRERELEASE_NOTES.md](docs/PRERELEASE_NOTES.md). Report problems via [GitHub Issues](https://github.com/MiMindMendinc/lyle-rope-kernel-js/issues) (include Node version, OS, commit SHA, and failing command).
+Experimental prerelease / install / migration notes: [docs/PRERELEASE_NOTES.md](https://github.com/MiMindMendinc/lyle-rope-kernel-js/blob/main/docs/PRERELEASE_NOTES.md). Report problems via [GitHub Issues](https://github.com/MiMindMendinc/lyle-rope-kernel-js/issues) (include Node version, OS, commit SHA, and failing command).
 
 ## Scope and evidence
 
 | Area | Scope | Evidence |
 | --- | --- | --- |
 | Rotation | In-place Float32 tensors; adjacent and split-half layouts | `test/rope.test.js` |
-| Numerical behavior | Float64 frequencies and arithmetic; Float32 output; explicit tolerance and sampled position range | `docs/NUMERICS.md`, `test/hardening.test.js` |
+| Numerical behavior | Float64 frequencies and arithmetic; Float32 output; explicit tolerance and sampled position range; scaled inputs to 1e30 (abs + rel tolerance); wrong types, empty tensors and NaN pinned | `docs/NUMERICS.md`, `test/hardening.test.js`, `test/scaled-input.test.js`, `test/input-contract.test.js` |
 | Packed Q/K | `[tokens, heads, headDim]`, unequal Q/K head counts, shared angles | Both correctness test files |
 | Example | Single-head, non-causal attention on small deterministic inputs | `test/example.test.js` |
 | Packaging | Actual tarball installed into a fresh offline consumer | `npm run test:package` |
@@ -37,9 +37,12 @@ a KV cache, Llama 3/YaRN/NTK scaling, or end-to-end model-quality validation.
 
 ## Install
 
-> **Not yet on npm.** No version of this package has been published to the npm
-> registry. Until one is, use a checkout or a local tarball (next section).
-> Once `1.1.0-rc.1` is published, this is the install command:
+> **Check npm for published versions first.** The
+> [`lyle-rope-kernel` page on npmjs](https://www.npmjs.com/package/lyle-rope-kernel) lists
+> every version that has actually been published. If `1.1.0-rc.1` is not listed there,
+> use a checkout or a local tarball ([Run from a checkout](#run-from-a-checkout)).
+> Prereleases are meant to be published under the `next` dist-tag (`publishConfig` in
+> `package.json`), so install an explicit version. When it is listed, use:
 
 ```sh
 npm install lyle-rope-kernel@1.1.0-rc.1
@@ -85,7 +88,8 @@ npm pack --offline --ignore-scripts
 npm install /absolute/path/to/lyle-rope-kernel-1.1.0-rc.1.tgz --offline --ignore-scripts --no-audit --no-fund
 ```
 
-The version in this branch is a release candidate, not a claim of an npm publication.
+The version in `package.json` is a release candidate; it is not by itself a claim that
+that version was published.
 
 ## API
 
@@ -181,7 +185,8 @@ npm run bench -- --out my-run.json  # choose the JSON path
 ## Precision, caching and migration
 
 Read the [numerical contract](docs/NUMERICS.md) before integrating with a model.
-The tested absolute tolerance remains `1e-6` for bounded fixtures. This does not
+The tested absolute tolerance remains `1e-6` for bounded fixtures in `[-1, 1)`;
+inputs scaled up to `1e30` are tested against `1e-6 + 4 Float32 ulps * |reference|`. This does not
 establish bit-exact parity with a model framework or preserved model accuracy.
 
 `createRoPEPlan(128, 10000, { maxSeqLen: 8192 })` precomputes positions 0..8191.

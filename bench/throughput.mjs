@@ -17,6 +17,7 @@ import {
   applyRoPEQK, applyRoPESplitHalfWithPlan, applyRoPEWithPlan, createRoPEPlan,
 } from '../src/rope-kernel.js';
 import { fixture, maxAbsError, referenceRoPE } from '../support/reference.mjs';
+import { plainScalarRoPEInPlace } from './baseline.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const args = process.argv.slice(2);
@@ -116,10 +117,14 @@ for (const { headDim, seqLen } of singleShapes) {
     adjacent: referenceRoPE(input, headDim, { base: BASE }),
     'split-half': referenceRoPE(input, headDim, { base: BASE, layout: 'split-half' }),
   };
+  const scratch = new Float64Array(headDim / 2);
   const cases = [
     { api: 'applyRoPEWithPlan', layout: 'adjacent', plan: 'frequencies only', run: t => applyRoPEWithPlan(t, mathPlan) },
     { api: 'applyRoPEWithPlan', layout: 'adjacent', plan: 'cached trig table', run: t => applyRoPEWithPlan(t, cachedPlan) },
     { api: 'applyRoPESplitHalfWithPlan', layout: 'split-half', plan: 'cached trig table', run: t => applyRoPESplitHalfWithPlan(t, cachedPlan) },
+    // Not this package: a plain in-place scalar loop (bench/baseline.mjs), checked like the kernels.
+    { api: 'plainScalarRoPEInPlace (baseline, not this package)', layout: 'adjacent', plan: 'none',
+      run: t => plainScalarRoPEInPlace(t, headDim, BASE, scratch) },
   ];
   for (const c of cases) {
     const error = maxAbsError(c.run(new Float32Array(input)), expected[c.layout]);
@@ -131,8 +136,9 @@ for (const { headDim, seqLen } of singleShapes) {
       ...(c.plan === 'cached trig table' ? { cachedPlanBuildMs } : {}),
       ...summarize(measure(() => c.run(buffer)), pairs) });
   }
-  // Naive reference: allocates its output and recomputes Math.pow per element.
-  results.push({ group: 'single', api: 'referenceRoPE (naive JS reference in this repo)',
+  // Correctness oracle cost only: it allocates its output and recomputes Math.pow per element,
+  // so it is not a performance baseline and is not shown in the README tables.
+  results.push({ group: 'oracle', api: 'referenceRoPE (correctness oracle; allocates; not a baseline)',
     layout: 'adjacent', plan: 'none', headDim, seqLen, qHeads: 1, kvHeads: 0,
     rotatedPairsPerCall: pairs, maxAbsErrorVsReference: 0,
     ...summarize(measure(() => referenceRoPE(input, headDim, { base: BASE })), pairs) });
@@ -177,11 +183,15 @@ const report = {
     unit: 'ns per rotated (x0, x1) pair; packed counts Q and K pairs',
     timedRegion: 'in-place rotation of one reused Float32Array buffer from startPos 0; ' +
       'plan creation and input copies are outside the timed region (position 0 is the identity and is skipped by the kernel)',
-    reference: 'support/reference.mjs referenceRoPE: naive scalar JS in this repo; allocates a new output ' +
-      'array and recomputes Math.pow per element (it is the correctness oracle, not an optimized baseline)',
+    baseline: 'bench/baseline.mjs plainScalarRoPEInPlace: a straightforward in-place scalar loop (not this ' +
+      'package): inverse frequencies once per call into a reused scratch array, Math.cos/Math.sin per pair, ' +
+      'no output allocation; reference-checked like the kernel cases',
+    oracle: 'group "oracle" times support/reference.mjs referenceRoPE, the correctness oracle; it allocates a ' +
+      'new output array and recomputes Math.pow per element, so it is recorded for completeness only and is ' +
+      'not a performance baseline',
     correctness: `every timed kernel case matched the reference within ${TOLERANCE} absolute before timing`,
     base: BASE,
-    caveat: 'One machine, one run. Indicative only; not a comparison with other libraries, GPUs or models.',
+    caveat: 'One machine; this file is one run. Indicative only; not a comparison with other libraries, GPUs or models.',
   },
   results,
 };
@@ -191,7 +201,7 @@ const lines = [
   `Node ${report.environment.node}, ${report.environment.cpuModel} (${report.environment.logicalCpus} logical CPUs), ` +
     `${report.environment.platform} ${report.environment.osRelease} ${report.environment.arch}`,
   '',
-  '| Shape [seq, headDim] | applyRoPEWithPlan, no cache | applyRoPEWithPlan, cached | applyRoPESplitHalfWithPlan, cached | Naive JS reference in this repo |',
+  '| Shape [seq, headDim] | applyRoPEWithPlan, no cache | applyRoPEWithPlan, cached | applyRoPESplitHalfWithPlan, cached | Plain in-place scalar loop (baseline) |',
   '| --- | ---: | ---: | ---: | ---: |',
 ];
 for (const { headDim, seqLen } of singleShapes) {
@@ -202,7 +212,7 @@ for (const { headDim, seqLen } of singleShapes) {
   };
   lines.push(`| [${seqLen}, ${headDim}] | ${cell('applyRoPEWithPlan', 'frequencies only')} | ` +
     `${cell('applyRoPEWithPlan', 'cached trig table')} | ${cell('applyRoPESplitHalfWithPlan', 'cached trig table')} | ` +
-    `${cell('referenceRoPE', 'none')} |`);
+    `${cell('plainScalarRoPEInPlace', 'none')} |`);
 }
 lines.push('', '| Packed Q/K shape [seq, Q heads / KV heads, headDim] | applyRoPEQK, no cache | applyRoPEQK, cached |',
   '| --- | ---: | ---: |');
@@ -211,7 +221,8 @@ for (const { headDim, seqLen, qHeads, kvHeads } of packedShapes) {
     x.seqLen === seqLen && x.qHeads === qHeads && x.kvHeads === kvHeads && x.plan === plan).medianNsPerPair);
   lines.push(`| [${seqLen}, ${qHeads}/${kvHeads}, ${headDim}] | ${cell('frequencies only')} | ${cell('cached trig table')} |`);
 }
-lines.push('', 'Median nanoseconds per rotated (x0, x1) pair; lower means less time per pair. One machine, one run; indicative only.');
+lines.push('', 'Median nanoseconds per rotated (x0, x1) pair; lower means less time per pair. One machine, one run; indicative only.',
+  'For the README, combine several runs with `npm run bench:aggregate` (median and min-max across runs).');
 
 if (smoke) {
   process.stdout.write(JSON.stringify(report) + '\n');
