@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { MIN_RUNS, aggregateRuns, renderReadmeTables } from '../bench/aggregate.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const readme = readFileSync(root + 'README.md', 'utf8');
+// Normalize CRLF: Windows checkouts (core.autocrlf) convert README line endings.
+const readme = readFileSync(root + 'README.md', 'utf8').replace(/\r\n/g, '\n');
 
 describe('README benchmark tables match the committed evidence', () => {
   const link = readme.match(/\(https:\/\/github\.com\/MiMindMendinc\/lyle-rope-kernel-js\/blob\/main\/(evidence\/bench-[\d-]+\.json)\)/);
