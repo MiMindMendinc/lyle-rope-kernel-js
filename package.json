@@ -58,5 +58,8 @@
     "node": ">=22"
   },
   "author": "Lyle Perrien II",
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "tag": "next"
+  }
 }
