@@ -24,6 +24,9 @@
 - Add a live browser demo (`demo/playground.html`) that imports the unmodified ES
   module, checks it against the reference in the page and times it in the browser;
   Pages now builds `_site/` with `npm run site:build`. No analytics or network requests.
+  Number fields re-run automatically; invalid or empty values clear the previous
+  verdict, timing and visuals; positions are capped at 131071, the highest position
+  the numerical tests cover.
 - Packaging metadata for a future publish: `sideEffects: false`, a
   `./package.json` export, more specific keywords and a `prepublishOnly` verify gate.
   The package is still not published.

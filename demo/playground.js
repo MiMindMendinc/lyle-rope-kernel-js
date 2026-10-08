@@ -2,23 +2,39 @@
 import * as kernel from './src/rope-kernel.js';
 import * as reference from './support/reference.js';
 import {
-  LIMITS, cosineGrid, pairAt, runCheck, timeKernel, validateConfig,
+  LIMITS, NUMBER_FIELDS, configFromFields, cosineGrid, maxStartPosFor, pairAt, runCheck, timeKernel,
+  validateConfig,
 } from './playground-core.js';
 
 const $ = id => document.getElementById(id);
 const form = $('controls');
-const numberFields = ['seqLen', 'startPos', 'qHeads', 'kvHeads', 'seed'];
+const AUTO_RUN_DELAY_MS = 350;
+let pendingRun = 0;
+let lastRenderedKey = null;
+let lastTimedKey = null;
 
 function readConfig() {
-  const cfg = {
-    api: $('api').value,
-    layout: $('layout').value,
-    headDim: Number($('headDim').value),
-    base: Number($('base').value),
-    cached: $('cached').checked,
-  };
-  for (const name of numberFields) cfg[name] = Number($(name).value);
-  return cfg;
+  const fields = { api: $('api').value, layout: $('layout').value, headDim: $('headDim').value,
+    cached: $('cached').checked };
+  // Raw strings: an empty field must stay empty (NaN) instead of becoming 0.
+  for (const name of NUMBER_FIELDS) fields[name] = $(name).value;
+  return configFromFields(fields);
+}
+
+function configKey(cfg) {
+  const { api, layout, headDim, cached, seqLen, startPos, base, seed } = cfg;
+  const heads = api === 'packed' ? [cfg.qHeads, cfg.kvHeads] : [];
+  return JSON.stringify([api, layout, headDim, cached, seqLen, startPos, base, seed, ...heads]);
+}
+
+// Keep the native spinner limits consistent with the tested position bound.
+function syncPositionLimits(cfg) {
+  const seqOk = Number.isSafeInteger(cfg.seqLen) && cfg.seqLen >= 1;
+  const startOk = Number.isSafeInteger(cfg.startPos) && cfg.startPos >= 0;
+  $('startPos').max = String(seqOk ? Math.max(0, Math.min(LIMITS.maxStartPos, maxStartPosFor(cfg.seqLen)))
+    : LIMITS.maxStartPos);
+  $('seqLen').max = String(startOk ? Math.max(1, Math.min(LIMITS.maxSeqLen, LIMITS.maxPosition - cfg.startPos + 1))
+    : LIMITS.maxSeqLen);
 }
 
 function showConfigErrors(errors) {
@@ -150,26 +166,87 @@ function setBusy(busy) {
   for (const id of ['run', 'time', 'reseed']) $(id).disabled = busy;
 }
 
-function runAndRender() {
+function timingPlaceholder(text) {
+  const box = $('timing');
+  const p = document.createElement('p');
+  p.className = 'muted';
+  p.textContent = text;
+  box.replaceChildren(p);
+  lastTimedKey = null;
+}
+
+// Nothing on screen may describe a configuration other than the current one.
+function showNotRun(message) {
+  const verdict = document.createElement('p');
+  verdict.id = 'verdict';
+  verdict.className = 'verdict not-run';
+  verdict.dataset.status = 'not-run';
+  verdict.textContent = 'Not run';
+  const note = document.createElement('p');
+  note.className = 'muted';
+  note.textContent = message;
+  $('check').replaceChildren(verdict, note);
+  $('viz').classList.add('stale');
+  $('dials-caption').textContent = 'Not run: the visuals are hidden until the configuration is valid.';
+  $('heatmap').setAttribute('aria-label', 'Not run');
+  $('dials').setAttribute('aria-label', 'Not run');
+  timingPlaceholder('Not run: fix the configuration above, then press Time it in your browser.');
+  lastRenderedKey = null;
+}
+
+function cancelPendingRun() {
+  clearTimeout(pendingRun);
+  pendingRun = 0;
+}
+
+// force: re-run even if the configuration has not changed (Run + check, Enter, new seed).
+function runAndRender({ force = false } = {}) {
+  cancelPendingRun();
   const cfg = readConfig();
-  if (!showConfigErrors(validateConfig(cfg))) return;
+  syncPositionLimits(cfg);
+  const errors = validateConfig(cfg);
+  if (!showConfigErrors(errors)) {
+    showNotRun('Fix the configuration above; results from the previous run were cleared.');
+    return false;
+  }
+  const key = configKey(cfg);
+  if (!force && key === lastRenderedKey) return true;
   try {
     const result = runCheck(kernel, reference, cfg);
     renderCheck(cfg, result);
     drawHeatmap(cfg, result.plan);
     drawDials(cfg, result);
+    $('viz').classList.remove('stale');
+    lastRenderedKey = key;
   } catch (error) {
-    $('check').textContent = 'Error: ' + error.message;
+    showNotRun('Error: ' + error.message);
+    return false;
   }
+  if (lastTimedKey !== null && lastTimedKey !== key) {
+    timingPlaceholder('The configuration changed since the last timing. Press Time it in your browser to time this one.');
+  }
+  return true;
+}
+
+function scheduleRun() {
+  cancelPendingRun();
+  pendingRun = setTimeout(() => runAndRender(), AUTO_RUN_DELAY_MS);
 }
 
 function timeAndRender() {
+  if (!runAndRender()) return;
   const cfg = readConfig();
-  if (!showConfigErrors(validateConfig(cfg))) return;
+  const key = configKey(cfg);
   setBusy(true);
   $('timing').textContent = 'Timing… the page may be unresponsive for a moment.';
   // Yield once so the status text paints before the main thread is busy.
   setTimeout(() => {
+    // The configuration may have been edited during the yield; never label old timing as current.
+    if (lastRenderedKey !== key || configKey(readConfig()) !== key) {
+      setBusy(false);
+      timingPlaceholder('The configuration changed before timing started. Press Time it in your browser again.');
+      return;
+    }
     try {
       const t = timeKernel(kernel, cfg, { now: () => performance.now(), targetMs: 50, samples: 5 });
       const { api, shape } = describe(cfg);
@@ -188,8 +265,9 @@ function timeAndRender() {
       note.textContent = 'Measured in your browser on this device, on the main thread, with coarse browser ' +
         'timers. Indicative only; not comparable across devices or with the Node numbers in the README.';
       box.append(table, note);
+      lastTimedKey = key;
     } catch (error) {
-      $('timing').textContent = 'Error: ' + error.message;
+      timingPlaceholder('Error: ' + error.message);
     } finally {
       setBusy(false);
     }
@@ -200,14 +278,18 @@ function syncPackedFields() {
   form.classList.toggle('hidden-packed', $('api').value !== 'packed');
 }
 
-form.addEventListener('submit', event => { event.preventDefault(); runAndRender(); });
+form.addEventListener('submit', event => { event.preventDefault(); runAndRender({ force: true }); });
 $('time').addEventListener('click', timeAndRender);
 $('reseed').addEventListener('click', () => {
   $('seed').value = String(crypto.getRandomValues(new Uint32Array(1))[0]);
-  runAndRender();
+  runAndRender({ force: true });
 });
 $('api').addEventListener('change', () => { syncPackedFields(); runAndRender(); });
-for (const id of ['layout', 'headDim', 'cached']) $(id).addEventListener('change', runAndRender);
-$('seqLen').max = String(LIMITS.maxSeqLen);
+for (const id of ['layout', 'headDim', 'cached']) $(id).addEventListener('change', () => runAndRender());
+// Number fields re-run on their own: debounced while typing, immediately on commit (blur, spinner).
+for (const id of NUMBER_FIELDS) {
+  $(id).addEventListener('input', scheduleRun);
+  $(id).addEventListener('change', () => runAndRender());
+}
 syncPackedFields();
 runAndRender();

@@ -9,7 +9,8 @@ import { performance } from 'node:perf_hooks';
 import * as kernel from '../src/rope-kernel.js';
 import * as reference from '../support/reference.mjs';
 import {
-  LIMITS, TOLERANCE, cosineGrid, pairAt, runCheck, seededInput, timeKernel, validateConfig,
+  LIMITS, NUMBER_FIELDS, TOLERANCE, configFromFields, cosineGrid, maxStartPosFor, pairAt,
+  parseNumberField, runCheck, seededInput, timeKernel, validateConfig,
 } from '../demo/playground-core.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -21,7 +22,7 @@ describe('browser demo core (runs the same logic as the page)', () => {
     for (const api of ['single', 'packed']) {
       for (const layout of ['adjacent', 'split-half']) {
         for (const cached of [false, true]) {
-          for (const startPos of [0, 1, 8191, LIMITS.maxStartPos - 40]) {
+          for (const startPos of [0, 1, 8191, LIMITS.maxStartPos - 40, maxStartPosFor(base.seqLen)]) {
             const cfg = { ...base, api, layout, cached, startPos };
             const result = runCheck(kernel, reference, cfg);
             assert.equal(result.pass, true, JSON.stringify(cfg));
@@ -57,6 +58,59 @@ describe('browser demo core (runs the same logic as the page)', () => {
     assert.ok(validateConfig({ ...base, api: 'packed', seqLen: 4096, qHeads: 64, headDim: 256 }).length);
     assert.ok(validateConfig({ ...base, cached: true, startPos: 131071, headDim: 256 }).length);
     assert.throws(() => runCheck(kernel, reference, { ...base, layout: 'x' }), RangeError);
+  });
+
+  it('treats empty or non-numeric form fields as validation errors, not as 0', () => {
+    assert.ok(Number.isNaN(parseNumberField('')));
+    assert.ok(Number.isNaN(parseNumberField('   ')));
+    assert.ok(Number.isNaN(parseNumberField('abc')));
+    assert.ok(Number.isNaN(parseNumberField(undefined)));
+    assert.equal(parseNumberField('0'), 0);
+    assert.equal(parseNumberField(' 42 '), 42);
+    const fields = { api: 'single', layout: 'adjacent', headDim: '64', cached: false,
+      seqLen: '33', startPos: '0', base: '10000', qHeads: '4', kvHeads: '2', seed: '7' };
+    assert.deepEqual(configFromFields(fields), base);
+    assert.deepEqual(validateConfig(configFromFields(fields)), []);
+    for (const name of NUMBER_FIELDS) {
+      const api = name === 'qHeads' || name === 'kvHeads' ? 'packed' : 'single';
+      for (const blank of ['', '  ', 'x']) {
+        const errors = validateConfig(configFromFields({ ...fields, api, [name]: blank }));
+        assert.equal(errors.length, 1, `${name}=${JSON.stringify(blank)}: ${errors}`);
+        assert.match(errors[0], new RegExp(`^${name} is empty or not a number`));
+        assert.throws(() => runCheck(kernel, reference, configFromFields({ ...fields, api, [name]: blank })),
+          RangeError);
+      }
+    }
+    // A literal 0 is still a valid startPos and seed.
+    assert.deepEqual(validateConfig(configFromFields({ ...fields, startPos: '0', seed: '0' })), []);
+  });
+
+  it('keeps every rotated position within the range covered by the numerical tests', () => {
+    assert.equal(LIMITS.maxPosition, 131071);
+    assert.equal(maxStartPosFor(1), 131071);
+    assert.equal(maxStartPosFor(4096), 131071 - 4095);
+    assert.deepEqual(validateConfig({ ...base, seqLen: 1, startPos: 131071 }), []);
+    assert.ok(validateConfig({ ...base, seqLen: 1, startPos: 131072 }).length);
+    for (const seqLen of [2, 72, 513, LIMITS.maxSeqLen]) {
+      const highest = { ...base, seqLen, startPos: maxStartPosFor(seqLen) };
+      assert.deepEqual(validateConfig(highest), [], `seqLen ${seqLen}`);
+      const over = validateConfig({ ...highest, startPos: highest.startPos + 1 });
+      assert.equal(over.length, 1, `seqLen ${seqLen}`);
+      assert.match(over[0], /must be at most 131071/);
+      assert.match(over[0], new RegExp(`use startPos ${maxStartPosFor(seqLen)} or lower`));
+    }
+    // The case found in QA: startPos 131071 with 4096 tokens would reach position 135166.
+    const qa = validateConfig({ ...base, seqLen: 4096, startPos: 131071 });
+    assert.equal(qa.length, 1);
+    assert.match(qa[0], /\(the last position, 135166\)/);
+    assert.throws(() => runCheck(kernel, reference, { ...base, seqLen: 4096, startPos: 131071 }), RangeError);
+    for (const api of ['single', 'packed']) {
+      for (const layout of ['adjacent', 'split-half']) {
+        const cfg = { ...base, api, layout, seqLen: 8, startPos: maxStartPosFor(8) };
+        assert.equal(runCheck(kernel, reference, cfg).pass, true, JSON.stringify(cfg));
+        assert.throws(() => runCheck(kernel, reference, { ...cfg, startPos: cfg.startPos + 1 }), RangeError);
+      }
+    }
   });
 
   it('builds visualization data from the plan', () => {

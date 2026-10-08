@@ -23,14 +23,14 @@
     <div class="grid">
       <label>API
         <select id="api">
-          <option value="single">applyRoPEWithPlan / SplitHalf: one tensor [seq, headDim]</option>
-          <option value="packed">applyRoPEQK: packed Q/K [seq, heads, headDim]</option>
+          <option value="single">Single tensor [seq, d]</option>
+          <option value="packed">Packed Q/K [seq, h, d]</option>
         </select>
       </label>
       <label>Layout
         <select id="layout">
-          <option value="adjacent">adjacent pairs (x0, x1)</option>
-          <option value="split-half">split-half (x[i], x[i + d/2])</option>
+          <option value="adjacent">Adjacent (x0, x1)</option>
+          <option value="split-half">Split-half (x[i], x[i+d/2])</option>
         </select>
       </label>
       <label>headDim
@@ -63,6 +63,8 @@
       <button id="time" type="button">Time it in your browser</button>
       <button id="reseed" type="button" class="secondary">New random seed</button>
     </div>
+    <p class="muted hint">Changes apply automatically. Positions startPos through startPos + seqLen − 1
+    must stay at or below 131071, the highest position the repository's numerical tests cover.</p>
     <p id="config-error" class="error" role="alert" hidden></p>
   </form>
 
@@ -77,7 +79,7 @@
     The page will be busy for about half a second.</p></div>
   </section>
 
-  <section class="card" aria-labelledby="viz-title">
+  <section id="viz" class="card" aria-labelledby="viz-title">
     <h2 id="viz-title">What the rotation does</h2>
     <p class="muted">Left: cos(θ) for each position (rows, top = startPos) and frequency pair
     (columns, left = highest frequency), from the plan's <code>invFreq</code>. Right: for the last token

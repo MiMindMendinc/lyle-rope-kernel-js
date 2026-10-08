@@ -6,7 +6,11 @@ export const LIMITS = Object.freeze({
   headDims: [8, 16, 32, 64, 128, 256],
   maxSeqLen: 4096,
   maxHeads: 64,
-  maxStartPos: 131071, // Highest position sampled by the repository's numerical tests.
+  // Highest absolute position sampled by the repository's numerical tests
+  // (docs/NUMERICS.md). Every rotated position, startPos .. startPos + seqLen - 1,
+  // must stay at or below it, so the demo never runs outside the tested range.
+  maxPosition: 131071,
+  maxStartPos: 131071,
   maxElementsPerTensor: 4 * 1024 * 1024,
   maxCacheBytes: 64 * 1024 * 1024,
 });
@@ -25,10 +29,38 @@ export function seededInput(length, seed) {
   return out;
 }
 
+// Parse a raw form value. Empty or non-numeric text becomes NaN so validation rejects
+// it; Number('') would otherwise silently turn an empty field into 0.
+export function parseNumberField(text) {
+  const trimmed = String(text ?? '').trim();
+  return trimmed === '' ? NaN : Number(trimmed);
+}
+
+export const NUMBER_FIELDS = Object.freeze(['seqLen', 'startPos', 'base', 'qHeads', 'kvHeads', 'seed']);
+
+// Build a config from raw form values (strings for the number fields).
+export function configFromFields(fields) {
+  const cfg = {
+    api: fields.api,
+    layout: fields.layout,
+    headDim: Number(fields.headDim),
+    cached: Boolean(fields.cached),
+  };
+  for (const name of NUMBER_FIELDS) cfg[name] = parseNumberField(fields[name]);
+  return cfg;
+}
+
+// Highest startPos allowed for a sequence length so the last position stays in the tested range.
+export function maxStartPosFor(seqLen) {
+  return LIMITS.maxPosition - seqLen + 1;
+}
+
 export function validateConfig(cfg) {
   const errors = [];
   const int = (value, min, max, name) => {
-    if (!Number.isSafeInteger(value) || value < min || value > max) {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      errors.push(`${name} is empty or not a number; enter an integer from ${min} to ${max}`);
+    } else if (!Number.isSafeInteger(value) || value < min || value > max) {
       errors.push(`${name} must be an integer from ${min} to ${max}`);
     }
   };
@@ -38,12 +70,22 @@ export function validateConfig(cfg) {
   int(cfg.seqLen, 1, LIMITS.maxSeqLen, 'seqLen');
   int(cfg.startPos, 0, LIMITS.maxStartPos, 'startPos');
   int(cfg.seed, 0, 0xffffffff, 'seed');
-  if (!Number.isFinite(cfg.base) || cfg.base <= 1 || cfg.base > 1e7) errors.push('base must be greater than 1 and at most 10000000');
+  if (typeof cfg.base !== 'number' || Number.isNaN(cfg.base)) {
+    errors.push('base is empty or not a number; enter a value greater than 1 and at most 10000000');
+  } else if (!Number.isFinite(cfg.base) || cfg.base <= 1 || cfg.base > 1e7) {
+    errors.push('base must be greater than 1 and at most 10000000');
+  }
   if (cfg.api === 'packed') {
     int(cfg.qHeads, 1, LIMITS.maxHeads, 'qHeads');
     int(cfg.kvHeads, 1, LIMITS.maxHeads, 'kvHeads');
   }
   if (!errors.length) {
+    const last = cfg.startPos + cfg.seqLen - 1;
+    if (last > LIMITS.maxPosition) {
+      errors.push(`startPos + seqLen - 1 (the last position, ${last}) must be at most ${LIMITS.maxPosition}, ` +
+        `the highest position the repository's numerical tests cover; with seqLen ${cfg.seqLen}, ` +
+        `use startPos ${Math.max(0, maxStartPosFor(cfg.seqLen))} or lower`);
+    }
     const heads = cfg.api === 'packed' ? Math.max(cfg.qHeads, cfg.kvHeads) : 1;
     if (cfg.seqLen * heads * cfg.headDim > LIMITS.maxElementsPerTensor) {
       errors.push(`seqLen x heads x headDim must be at most ${LIMITS.maxElementsPerTensor} per tensor`);
