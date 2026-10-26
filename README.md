@@ -8,7 +8,7 @@ rotate synthetic data with the real ES module in your browser, see the angles, c
 the result against the scalar reference, and time it on your device. No analytics,
 no network requests beyond the page's own files.
 
-[Live demo](https://mimindmendinc.github.io/lyle-rope-kernel-js/playground.html) · [Benchmarks](#benchmarks-one-machine-indicative-only) · [Install](#install)
+[At a glance](#at-a-glance) · [Install](#install) · [API](#api) · [Benchmarks](#benchmarks-one-machine-indicative-only) · [Project status](#project-status)
 
 [![CI](https://github.com/MiMindMendinc/lyle-rope-kernel-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MiMindMendinc/lyle-rope-kernel-js/actions/workflows/ci.yml)
 
@@ -17,6 +17,16 @@ The badge shows CI status for `main`; run `npm run verify` to check a local chec
 
 Prerelease, install and migration notes: [docs/PRERELEASE_NOTES.md](https://github.com/MiMindMendinc/lyle-rope-kernel-js/blob/main/docs/PRERELEASE_NOTES.md).
 Report problems via [GitHub Issues](https://github.com/MiMindMendinc/lyle-rope-kernel-js/issues) (include Node version, OS, commit SHA, and the failing command).
+
+## At a glance
+
+| | |
+| --- | --- |
+| **What** | Rotary position embedding (RoPE) for `Float32Array` tensors: single-head and packed multi-head Q/K, adjacent and split-half layouts, optional cached trig tables |
+| **Version** | `1.1.0-rc.1` (release candidate; not yet published to npm) |
+| **Tech stack** | Plain JavaScript ES module, zero runtime and development dependencies, Node 22+, Node's built-in test runner, GitHub Actions (Node 22 and 24, Linux and Windows), GitHub Pages for the demo |
+| **Quality evidence** | Reference-checked tests, packed-tarball install test, an evidence harness that records source hashes and raw timings, and a one-machine benchmark with raw data committed under `evidence/` |
+| **Not included** | GPU execution, a transformer, a KV cache, or model-quality validation (see [Scope and evidence](#scope-and-evidence)) |
 
 ## Scope and evidence
 
@@ -249,11 +259,15 @@ Browser runtime correctness is still not covered by this CI matrix.
 The `lyle-rope-kernel/webgpu` compatibility entry point is a **CPU fallback**:
 its shader is empty and it does not request a GPU device or run GPU computation.
 
+## Project status
+
+Release candidate `1.1.0-rc.1`: experimental CPU component, not yet published to npm.
+It has not had a security audit or model-integration testing. Changes are listed in
+[CHANGELOG.md](CHANGELOG.md).
+
 ## Contributing / releases
 
-Pull requests need passing correctness and package checks (`npm run verify`). Changes are
-listed in [CHANGELOG.md](CHANGELOG.md). This package has not had a security audit or
-model-integration testing.
+Pull requests need passing correctness and package checks (`npm run verify`).
 
 ## License
 
