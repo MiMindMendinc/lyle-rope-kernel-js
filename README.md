@@ -8,13 +8,11 @@ rotate synthetic data with the real ES module in your browser, see the angles, c
 the result against the scalar reference, and time it on your device. No analytics,
 no network requests beyond the page's own files.
 
-[At a glance](#at-a-glance) · [Install](#install) · [API](#api) · [Benchmarks](#benchmarks-one-machine-indicative-only) · [Project status](#project-status)
+[At a glance](#at-a-glance) · [Install](#install) · [API](#api) · [Benchmarks](#benchmarks-one-machine-indicative-only) · [Status and limits](#status-and-limits)
 
 [![CI](https://github.com/MiMindMendinc/lyle-rope-kernel-js/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MiMindMendinc/lyle-rope-kernel-js/actions/workflows/ci.yml)
 
-This is an experimental CPU component, not a production-certified inference engine.
 The badge shows CI status for `main`; run `npm run verify` to check a local checkout.
-
 Prerelease, install and migration notes: [docs/PRERELEASE_NOTES.md](https://github.com/MiMindMendinc/lyle-rope-kernel-js/blob/main/docs/PRERELEASE_NOTES.md).
 Report problems via [GitHub Issues](https://github.com/MiMindMendinc/lyle-rope-kernel-js/issues) (include Node version, OS, commit SHA, and the failing command).
 
@@ -26,7 +24,6 @@ Report problems via [GitHub Issues](https://github.com/MiMindMendinc/lyle-rope-k
 | **Version** | `1.1.0-rc.1` (release candidate; not yet published to npm) |
 | **Tech stack** | Plain JavaScript ES module, zero runtime and development dependencies, Node 22+, Node's built-in test runner, GitHub Actions (Node 22 and 24, Linux and Windows), GitHub Pages for the demo |
 | **Quality evidence** | Reference-checked tests, packed-tarball install test, an evidence harness that records source hashes and raw timings, and a one-machine benchmark with raw data committed under `evidence/` |
-| **Not included** | GPU execution, a transformer, a KV cache, or model-quality validation (see [Scope and evidence](#scope-and-evidence)) |
 
 ## Scope and evidence
 
@@ -147,8 +144,7 @@ linux 6.12.94+ x64, 2026-10-08, source commit `40906c0dd032` (clean tree), a PR 
 to `main` as `4c92b89` with identical `src/` and `bench/` measurement code.
 **5 back-to-back runs** were combined with `npm run bench:aggregate`; every run and raw sample is in
 [`evidence/bench-2026-10-08.json`](https://github.com/MiMindMendinc/lyle-rope-kernel-js/blob/main/evidence/bench-2026-10-08.json).
-**These numbers are from one machine and are indicative only.** Your hardware, Node version
-and workload will give different numbers. No other library was benchmarked.
+Your hardware, Node version and workload will give different numbers. No other library was benchmarked.
 
 Each cell is the **median, across the 5 runs, of each run's median nanoseconds per rotated
 (x0, x1) pair**, with the **min–max of those per-run medians** in parentheses; lower means less
@@ -237,17 +233,15 @@ Review generated reports before sharing them.
 The harness checks all compared outputs outside the timed region. It compares
 per-head, packed, and packed-cached calls **within this package**, for one-token
 and 128-token workloads in both layouts. Every mode includes fresh input copies;
-plan creation is timed separately. Mode order rotates across samples. Results
-are machine/workload-specific, not claims against external libraries or GPUs.
+plan creation is timed separately. Mode order rotates across samples.
 
 `npm run test:performance` runs an opt-in cached-vs-uncached timing check; it is not part of CI.
 
 ## Examples and browser status
 
 `npm run example` checks a single-head attention result against an analytic
-answer. It uses a quadratic score matrix and is educational, non-causal, and
-unsuitable as a production attention implementation. `SimpleAttention` is an alias
-of the example class and accepts a single constructor argument.
+answer. It uses a quadratic score matrix and is educational and non-causal.
+`SimpleAttention` is an alias of the example class and accepts a single constructor argument.
 `node examples/packed-qk.js` demonstrates packed shapes only.
 
 The Pages site is built by `npm run site:build` (copies `demo/` plus the unmodified
@@ -255,15 +249,15 @@ The Pages site is built by `npm run site:build` (copies `demo/` plus the unmodif
 with `npm run site:serve` (loopback only, http://127.0.0.1:8080/). `demo/playground.html`
 runs the kernel in the browser on seeded synthetic data and reports its own reference
 check and browser timing; its logic is unit-tested in Node by `test/demo.test.js`.
-Browser runtime correctness is still not covered by this CI matrix.
 The `lyle-rope-kernel/webgpu` compatibility entry point is a **CPU fallback**:
 its shader is empty and it does not request a GPU device or run GPU computation.
 
-## Project status
+## Status and limits
 
-Release candidate `1.1.0-rc.1`: experimental CPU component, not yet published to npm.
-It has not had a security audit or model-integration testing. Changes are listed in
-[CHANGELOG.md](CHANGELOG.md).
+Release candidate `1.1.0-rc.1`, not yet published to npm. It is an experimental CPU
+component, not an inference engine: benchmarks are from one machine, browser runtime
+correctness is not covered by CI, and it has not had a security audit or
+model-integration testing. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing / releases
 
